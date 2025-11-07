@@ -4,9 +4,9 @@ import { drawGecko as drawGeckoLib } from "@/lib/gecko";
 import { drawSpider as drawSpiderLib } from "@/lib/spider";
 import { useEffect, useRef, useState } from "react";
 
-export default function Main() {
+export default function Main({ initialMode = "centipede", hideUI = false } = {}) {
   const canvasRef = useRef(null);
-  const [mode, setMode] = useState("centipede"); // "centipede" | "gecko" | "spider"
+  const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
@@ -352,56 +352,58 @@ export default function Main() {
         display: "flex",
         flexDirection: "column",
       }}>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "10px 14px",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          position: "sticky",
-          top: 0,
-          background: "rgba(11,16,32,0.75)",
-          backdropFilter: "blur(6px)",
-          zIndex: 1,
-        }}>
-          <div style={{ fontWeight: 600 }}>Cursor Arthropod Sim (Centipede / Gecko / Spider)</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {[
-              { key: "centipede", label: "Centipede" },
-              { key: "gecko", label: "Gecko" },
-              { key: "spider", label: "Spider" },
-            ].map((btn) => (
+        {!hideUI && (
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "10px 14px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            position: "sticky",
+            top: 0,
+            background: "rgba(11,16,32,0.75)",
+            backdropFilter: "blur(6px)",
+            zIndex: 1,
+          }}>
+            <div style={{ fontWeight: 600 }}>Cursor Arthropod Sim (Centipede / Gecko / Spider)</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { key: "centipede", label: "Centipede" },
+                { key: "gecko", label: "Gecko" },
+                { key: "spider", label: "Spider" },
+              ].map((btn) => (
+                <button
+                  key={btn.key}
+                  onClick={() => setMode(btn.key)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: mode === btn.key ? "1px solid #60a5fa" : "1px solid rgba(255,255,255,0.14)",
+                    background: mode === btn.key ? "#1e293b" : "#111827",
+                    color: "#e5e7eb",
+                    cursor: "pointer",
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
               <button
-                key={btn.key}
-                onClick={() => setMode(btn.key)}
+                onClick={() => setSpriteVersion((v) => v + 1)}
+                title="Reload sprites from /public"
                 style={{
                   padding: "6px 12px",
                   borderRadius: 8,
-                  border: mode === btn.key ? "1px solid #60a5fa" : "1px solid rgba(255,255,255,0.14)",
-                  background: mode === btn.key ? "#1e293b" : "#111827",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "#0f172a",
                   color: "#e5e7eb",
                   cursor: "pointer",
                 }}
               >
-                {btn.label}
+                Reload Sprites
               </button>
-            ))}
-            <button
-              onClick={() => setSpriteVersion((v) => v + 1)}
-              title="Reload sprites from /public"
-              style={{
-                padding: "6px 12px",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "#0f172a",
-                color: "#e5e7eb",
-                cursor: "pointer",
-              }}
-            >
-              Reload Sprites
-            </button>
+            </div>
           </div>
-        </div>
+        )}
         <div style={{ flex: 1, position: "relative" }}>
           <canvas
             ref={canvasRef}
@@ -418,9 +420,11 @@ export default function Main() {
             </div>
           )}
         </div>
-        <div style={{ padding: "6px 12px", fontSize: 12, color: "#64748b" }}>
-          Move your mouse. Toggle between Centipede, Gecko and Spider.
-        </div>
+        {!hideUI && (
+          <div style={{ padding: "6px 12px", fontSize: 12, color: "#64748b" }}>
+            Move your mouse. Toggle between Centipede, Gecko and Spider.
+          </div>
+        )}
       </div>
     </>
   );
