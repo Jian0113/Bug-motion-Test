@@ -1,6 +1,7 @@
 import Head from "next/head";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { introButtons, BugCard } from "@/components/intro-buttons";
 
 // 동적 로드로 클라이언트 전용 캔버스 의존성 회피
 const MainCanvas = dynamic(() => import("@/components/main"), { ssr: false });
@@ -8,17 +9,31 @@ const MainCanvas = dynamic(() => import("@/components/main"), { ssr: false });
 export default function Home() {
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [activeMode, setActiveMode] = useState("centipede");
+  const [overlayStage, setOverlayStage] = useState("card"); // 'card' | 'text'
+  const [overlayGrow, setOverlayGrow] = useState(false);
 
-  const cards = [
-    { key: "centipede", label: "Centipede", desc: "마우스를 따라가는 지네" },
-    { key: "gecko", label: "Gecko", desc: "다리 스텝이 있는 게코" },
-    { key: "spider", label: "Spider", desc: "거미 렌더" },
-  ];
+  // 버튼 데이터는 components/intro-buttons 폴더의 개별 파일(n1~n12.js)로 모듈화됨
 
   const openOverlay = (mode) => {
     setActiveMode(mode);
+    setOverlayStage("card");
+    setOverlayGrow(false);
     setOverlayOpen(true);
+    // 살짝 커지는 애니메이션 후 텍스트 노출
+    setTimeout(() => setOverlayGrow(true), 20);
+    setTimeout(() => setOverlayStage("text"), 520);
   };
+
+  const closeOverlay = () => {
+    setOverlayOpen(false);
+    setOverlayGrow(false);
+    setOverlayStage("card");
+  };
+
+  const selected = useMemo(() => {
+    const idx = introButtons.findIndex((b) => b.mode === activeMode);
+    return { data: introButtons[idx >= 0 ? idx : 0], index: (idx >= 0 ? idx : 0) + 1 };
+  }, [activeMode]);
 
   return (
     <>
@@ -29,107 +44,68 @@ export default function Home() {
       <div style={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
         background: "#0a0a0a",
         color: "#e5e7eb",
         padding: 24,
         position: "relative",
       }}>
         <div className="grid-bg" />
+        {/* Header */}
+        <header style={{
+          width: "100%",
+          maxWidth: 2000,
+          padding: "24px 0",
+          background: "rgba(0,0,0,0.3)",
+          borderBottom: "1px solid rgba(255,255,255,0.2)",
+        }}>
+          <h1 style={{
+            fontSize: 44,
+            lineHeight: "1.2",
+            letterSpacing: -1.2,
+            fontWeight: 700,
+            color: "#ffffff",
+            textAlign: "center",
+            fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
+            margin: 0,
+          }}>
+            Bugs Encyclopedia
+          </h1>
+        </header>
         <div style={{
           width: "100%",
-          maxWidth: 1120,
+          maxWidth: 2000,
+          
           background: "transparent",
-          borderRadius: 16,
+          borderRadius: 0,
           padding: 40,
           boxShadow: "none",
-          border: "1px solid rgba(255,255,255,0.08)",
+          border: "none",
         }}>
-          <div style={{
-            width: "100%",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 12,
-            padding: "24px 32px",
-            marginBottom: 24,
-            background: "rgba(0,0,0,0.3)",
-          }}>
-            <h1 style={{
-              fontSize: 44,
-              lineHeight: "1.2",
-              letterSpacing: -1.2,
-              fontWeight: 700,
-              color: "#ffffff",
-              textAlign: "center",
-              fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
-            }}>
-              Bugs Encyclopedia
-            </h1>
-          </div>
 
           <div style={{
             marginTop: 24,
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
             gap: 24,
           }}>
-            {cards.map((c, idx) => (
-              <button
-                key={c.key}
-                onClick={() => openOverlay(c.key)}
-                style={{
-                  textAlign: "left",
-                  background: "#0b0b0b",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  borderRadius: 12,
-                  padding: 16,
-                  cursor: "pointer",
-                  transition: "all .2s ease",
-                  overflow: "hidden",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.7)";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
-                  fontSize: 14,
-                  color: "#d1d5db",
-                  paddingBottom: 8,
-                  borderBottom: "1px solid rgba(255,255,255,0.16)",
-                  marginBottom: 12,
-                }}>
-                  <span style={{ color: "#9ca3af" }}>#{idx + 1}</span>
-                  <span style={{ color: "#93c5fd" }}>Bug</span>
-                  <span style={{ color: "#9ca3af" }}>(</span>
-                  <span style={{ color: "#f59e0b" }}>{c.label}</span>
-                  <span style={{ color: "#9ca3af" }}>)</span>
-                  <span style={{ color: "#9ca3af" }}>;</span>
-                </div>
-                <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 0 }}>{c.desc}</div>
-                <div style={{
-                  height: 180,
-                  marginTop: 12,
-                  borderRadius: 8,
-                  background: "#000000",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                }} />
-              </button>
+            {introButtons.map((c, idx) => (
+              <BugCard key={idx}
+                index={idx + 1}
+                label={c.label}
+                desc={c.desc}
+                mode={c.mode}
+                previewSrc={c.previewSrc}
+                onOpen={openOverlay}
+              />
             ))}
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
             <a href="/bug-visual" style={{
               padding: "10px 16px",
-              borderRadius: 10,
+              borderRadius: 0,
               background: "#111827",
               color: "#fff",
               fontSize: 14,
@@ -151,33 +127,78 @@ export default function Home() {
         }}>
           <div className="overlay-panel" style={{
             position: "relative",
-            width: "min(100%, 1100px)",
-            height: "min(90vh, 720px)",
-            background: "#0b1020",
-            borderRadius: 14,
-            overflow: "hidden",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            width: "min(100%, 1200px)",
+            height: "auto",
+            background: "transparent", // 투명
+            borderRadius: 0,
+            overflow: "visible",
+            boxShadow: "none",
+            border: "none",
+            display: "flex",
+            gap: 24,
+            alignItems: "flex-start",
+            padding: 12,
           }}>
             <button
-              onClick={() => setOverlayOpen(false)}
+              onClick={closeOverlay}
               aria-label="닫기"
               style={{
                 position: "absolute",
-                top: 10,
-                right: 10,
+                top: 8,
+                right: 8,
                 zIndex: 10,
-                padding: "6px 10px",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.2)",
-                background: "rgba(11,16,32,0.7)",
+                padding: 4,
+                borderRadius: 0,
+                border: "none",
+                background: "transparent",
                 color: "#e5e7eb",
                 cursor: "pointer",
+                fontSize: 18,
+                lineHeight: "18px",
               }}
             >
-              닫기
+              x
             </button>
-            <MainCanvas initialMode={activeMode} hideUI />
+
+            {/* 확대 카드 */}
+            <BugCard
+              index={selected.index}
+              label={selected.data.label}
+              desc={selected.data.desc}
+              mode={selected.data.mode}
+              previewSrc={overlayStage === "card" ? selected.data.previewSrc : undefined}
+              videoSrc={selected.data.videoSrc && overlayStage === "text" ? selected.data.videoSrc : undefined}
+              onOpen={() => {}}
+              style={{
+                transform: overlayGrow ? "scale(1.08)" : "scale(0.96)",
+                transition: "transform 450ms ease",
+                pointerEvents: "none",
+                minWidth: 420,
+              }}
+            />
+
+            {/* 우측 더미 텍스트 */}
+            <div style={{
+              width: 420,
+              color: "#cbd5e1",
+              fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
+              fontSize: 12,
+              lineHeight: "18px",
+              opacity: overlayStage === "text" ? 1 : 0,
+              transition: "opacity 350ms ease",
+              whiteSpace: "pre-wrap",
+            }}>
+{`name( ${selected.data.label} );\n\nreturn{\n  steps: [\n    'initialize()',\n    'setupScene()',\n    'drawSegments()',\n    'animate()',\n    'cleanup()',\n  ],\n  note: '이 영역은 더미 텍스트입니다. 실제 설명을 넣어주세요.'\n};\n\n// click 'x' to close`}
+              <div style={{ marginTop: 12 }}>
+                <a href={selected.index === 1 ? "/bug-visual_1" : "/bug-visual"} style={{
+                  padding: "8px 12px",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  color: "#e5e7eb",
+                  textDecoration: "none",
+                  background: "transparent",
+                }}>Detail</a>
+              </div>
+            </div>
           </div>
         </div>
       )}
