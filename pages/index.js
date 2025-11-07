@@ -103,7 +103,7 @@ export default function Home() {
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
-            <a href="/bug-visual" style={{
+            <a href="/bug-visual-all" style={{
               padding: "10px 16px",
               borderRadius: 0,
               background: "#111827",
@@ -190,7 +190,7 @@ export default function Home() {
             }}>
 {`name( ${selected.data.label} );\n\nreturn{\n  steps: [\n    'initialize()',\n    'setupScene()',\n    'drawSegments()',\n    'animate()',\n    'cleanup()',\n  ],\n  note: '이 영역은 더미 텍스트입니다. 실제 설명을 넣어주세요.'\n};\n\n// click 'x' to close`}
               <div style={{ marginTop: 12 }}>
-                <a href={selected.index === 1 ? "/bug-visual_1" : "/bug-visual"} style={{
+                <a href={selected.index === 1 ? "/bug-visual-centipede" : "/bug-visual-all"} style={{
                   padding: "8px 12px",
                   border: "1px solid rgba(255,255,255,0.4)",
                   color: "#e5e7eb",

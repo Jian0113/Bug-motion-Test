@@ -1,22 +1,48 @@
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import { drawCentipede as drawCentipedeLib } from "@/lib/centipede";
 import { drawGecko as drawGeckoLib } from "@/lib/gecko";
 import { drawSpider as drawSpiderLib } from "@/lib/spider";
 import { useEffect, useRef, useState } from "react";
 
-export default function Main({ initialMode = "centipede", hideUI = false } = {}) {
+const CentipedeControls = dynamic(() => import("@/components/controls/CentipedeControls"), { ssr: false });
+
+export default function Main({ initialMode = "centipede", hideUI = false, spritePaths = {}, spriteRotationOffset = {}, showControls = true } = {}) {
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
     spider: { head: null, body: null, leg: null },
+    // decoded bitmaps for faster drawImage
+    bitmaps: {
+      centipede: {},
+      spider: {},
+    },
   });
   const [spriteVersion, setSpriteVersion] = useState(0); // click to reload
+  const controlsRef = useRef({
+    rotationOffsets: {
+      head: 90,
+      body: -90,
+      legLeft: -180,
+      legRight: 0,
+      ...(spriteRotationOffset || {}),
+    },
+    scales: { head: 1.28, body: 0.5, leg: 0.45 },
+    legSpread: 1.0,
+    legPairGap: 0,
+    legAnchor: "knee",
+    legAnchorShift: 0,
+    legAnchorLeftPct: { x: 0.87, y: 0.27 },
+    legAnchorRightPct: { x: 0.15, y: 0.27 },
+  });
 
   // safe sprite accessor (available to all draw functions)
   const getSprite = (kind, part) => {
     const root = spritesRef.current || {};
+    const bm = (root.bitmaps && root.bitmaps[kind] && root.bitmaps[kind][part]) || null;
+    if (bm) return bm;
     const bucket = root[kind] || {};
     return bucket[part] || null;
   };
@@ -49,6 +75,7 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
       headWaveSpeedScale: 180, // px per (px/ms)
       headWaveMinSpeed: 0.02, // px/ms threshold
       headWaveTailRetention: 0.98, // per segment retention for head wave
+      rotationOffsets: spriteRotationOffset || {head: 180 },
     };
 
     const drawImageCenteredRotated = (img, x, y, angleRad, scale = 1) => {
@@ -249,6 +276,15 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       const mid = Math.floor(W / 2);
+      // inject latest control values each frame
+      state.rotationOffsets = controlsRef.current.rotationOffsets || {};
+      state.scales = controlsRef.current.scales || { head: 1.0, body: 0.375, leg: 0.45 };
+      state.legSpread = controlsRef.current.legSpread || 1.0;
+      state.legPairGap = controlsRef.current.legPairGap || 0;
+      state.legAnchor = controlsRef.current.legAnchor || "mid";
+      state.legAnchorShift = controlsRef.current.legAnchorShift || 0;
+      state.legAnchorLeftPct = controlsRef.current.legAnchorLeftPct || { x: 0.9, y: 0.2 };
+      state.legAnchorRightPct = controlsRef.current.legAnchorRightPct || { x: 0.1, y: 0.2 };
       const renderPane = (x, w, useSprites) => {
         ctx.save();
         ctx.beginPath();
@@ -288,7 +324,7 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
     };
   }, [mode]);
 
-  // Load sprites from /public default paths when spriteVersion changes
+  // Load sprites (allow override via spritePaths) when spriteVersion changes
   useEffect(() => {
     const loadOne = (path) =>
       new Promise((resolve) => {
@@ -299,13 +335,20 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
       });
     let mounted = true;
     (async () => {
+      const centipedeHeadPath = spritePaths?.centipede?.head ?? "/centipede-head.png";
+      const centipedeBodyPath = spritePaths?.centipede?.body ?? "/centipede-body.png";
+      const centipedeLegPath = spritePaths?.centipede?.leg ?? "/centipede-leg.png";
+      const spiderHeadPath = spritePaths?.spider?.head ?? "/spider-head.png";
+      const spiderBodyPath = spritePaths?.spider?.body ?? "/spider-body.png";
+      const spiderLegPath = spritePaths?.spider?.leg ?? "/spider-leg.png";
+
       const [cHead, cBody, cLeg, sHead, sBody, sLeg] = await Promise.all([
-        loadOne("/centipede-head.png"),
-        loadOne("/centipede-body.png"),
-        loadOne("/centipede-leg.png"),
-        loadOne("/spider-head.png"),
-        loadOne("/spider-body.png"),
-        loadOne("/spider-leg.png"),
+        loadOne(centipedeHeadPath),
+        loadOne(centipedeBodyPath),
+        loadOne(centipedeLegPath),
+        loadOne(spiderHeadPath),
+        loadOne(spiderBodyPath),
+        loadOne(spiderLegPath),
       ]);
       if (!mounted) return;
       spritesRef.current.centipede.head = cHead;
@@ -314,11 +357,46 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
       spritesRef.current.spider.head = sHead;
       spritesRef.current.spider.body = sBody;
       spritesRef.current.spider.leg = sLeg;
+      // create decoded bitmaps for faster rendering (skip SVGs without intrinsic size)
+      const canCreateBitmap = typeof createImageBitmap === 'function';
+      const hasDims = (im) => !!(im && (im.naturalWidth > 0 && im.naturalHeight > 0));
+      const makeBitmap = async (img) => {
+        if (!canCreateBitmap || !img) return null;
+        if (!hasDims(img)) return null; // avoid InvalidStateError for dimensionless SVG
+        try {
+          return await createImageBitmap(img);
+        } catch (_) {
+          return null;
+        }
+      };
+      const [bcHead, bcBody, bcLeg, bsHead, bsBody, bsLeg] = await Promise.all([
+        makeBitmap(cHead), makeBitmap(cBody), makeBitmap(cLeg),
+        makeBitmap(sHead), makeBitmap(sBody), makeBitmap(sLeg),
+      ]);
+      const bm = spritesRef.current.bitmaps;
+      bm.centipede.head = bcHead; bm.centipede.body = bcBody; bm.centipede.leg = bcLeg;
+      bm.spider.head = bsHead; bm.spider.body = bsBody; bm.spider.leg = bsLeg;
+
+      // load any additional centipede sprite keys (e.g., bodyLeft, bodyRight, bodyLeft2, bodyRight2, legLeft, legRight)
+      const extraCentipedeEntries = Object.entries(spritePaths?.centipede || {}).filter(([k]) => !["head","body","leg"].includes(k));
+      const extraLoaded = await Promise.all(
+        extraCentipedeEntries.map(([, path]) => loadOne(path))
+      );
+      extraCentipedeEntries.forEach(([key], idx) => {
+        spritesRef.current.centipede[key] = extraLoaded[idx];
+      });
+      // bitmaps for extra keys as well
+      const extraBitmaps = await Promise.all(
+        extraLoaded.map((img) => makeBitmap(img))
+      );
+      extraCentipedeEntries.forEach(([key], idx) => {
+        spritesRef.current.bitmaps.centipede[key] = extraBitmaps[idx];
+      });
     })();
     return () => {
       mounted = false;
     };
-  }, [spriteVersion]);
+  }, [spriteVersion, spritePaths]);
 
   function drawSpider(timeMs) {
     const canvas = canvasRef.current;
@@ -405,6 +483,16 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
           </div>
         )}
         <div style={{ flex: 1, position: "relative" }}>
+          {/* Visible grid background */}
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)
+            `,
+            backgroundSize: "40px 40px",
+            backgroundPosition: "0 0",
+          }} />
           <canvas
             ref={canvasRef}
             style={{
@@ -412,8 +500,47 @@ export default function Main({ initialMode = "centipede", hideUI = false } = {})
               height: "100%",
               display: "block",
               cursor: "none",
+              position: "relative",
+              zIndex: 1,
             }}
           />
+        {showControls && mode === "centipede" && (
+          <div style={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}>
+            <CentipedeControls
+              initialValues={{
+                headScale: controlsRef.current.scales.head,
+                bodyScale: controlsRef.current.scales.body,
+                legScale: controlsRef.current.scales.leg,
+                headRot: controlsRef.current.rotationOffsets.head || 0,
+                bodyRot: controlsRef.current.rotationOffsets.body || 0,
+                legLeftRot: controlsRef.current.rotationOffsets.legLeft || 0,
+                legRightRot: controlsRef.current.rotationOffsets.legRight || 0,
+                legSpread: controlsRef.current.legSpread || 1.0,
+                legPairGap: controlsRef.current.legPairGap || 0,
+                legAnchor: controlsRef.current.legAnchor || "mid",
+                legAnchorShift: controlsRef.current.legAnchorShift || 0,
+                legAnchorLeftXPct: controlsRef.current.legAnchorLeftPct?.x ?? 0.9,
+                legAnchorLeftYPct: controlsRef.current.legAnchorLeftPct?.y ?? 0.2,
+                legAnchorRightXPct: controlsRef.current.legAnchorRightPct?.x ?? 0.1,
+                legAnchorRightYPct: controlsRef.current.legAnchorRightPct?.y ?? 0.2,
+              }}
+              onChange={(p) => {
+                const { scales, rotationOffsets, legSpread, legPairGap, legAnchor, legAnchorShift, legAnchorLeftPct, legAnchorRightPct } = p || {};
+                controlsRef.current = {
+                  ...controlsRef.current,
+                  scales: scales ? { ...controlsRef.current.scales, ...scales } : controlsRef.current.scales,
+                  rotationOffsets: rotationOffsets ? { ...controlsRef.current.rotationOffsets, ...rotationOffsets } : controlsRef.current.rotationOffsets,
+                  legSpread: legSpread ?? controlsRef.current.legSpread,
+                  legPairGap: legPairGap ?? controlsRef.current.legPairGap,
+                  legAnchor: legAnchor ?? controlsRef.current.legAnchor,
+                  legAnchorShift: legAnchorShift ?? controlsRef.current.legAnchorShift,
+                  legAnchorLeftPct: legAnchorLeftPct ?? controlsRef.current.legAnchorLeftPct,
+                  legAnchorRightPct: legAnchorRightPct ?? controlsRef.current.legAnchorRightPct,
+                };
+              }}
+            />
+          </div>
+        )}
           {!isReady && (
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
               initializing...

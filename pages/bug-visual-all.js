@@ -1,5 +1,7 @@
 import Main from "@/components/main";
 
-export default function BugVisualPage() {
+export default function BugVisualAllPage() {
   return <Main />;
 }
+
+
