@@ -11,6 +11,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
+  const [showError, setShowError] = useState(false);
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
     spider: { head: null, body: null, leg: null },
@@ -54,6 +55,61 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
 
     let animationFrameId = 0;
     let running = true;
+
+    // cached grid pattern for background fill (multi-level grid)
+    let gridPattern = null;
+    const buildGridPattern = () => {
+      const minorSpacing = 20;
+      const majorSpacing = minorSpacing * 4; // 80px
+      const size = majorSpacing * 2; // 160px tile
+      const oc = document.createElement('canvas');
+      oc.width = size;
+      oc.height = size;
+      const g = oc.getContext('2d');
+      g.clearRect(0, 0, size, size);
+
+      // helper to draw crisp lines
+      const drawLine = (x1, y1, x2, y2, color, width = 1) => {
+        g.strokeStyle = color;
+        g.lineWidth = width;
+        g.beginPath();
+        g.moveTo(x1, y1);
+        g.lineTo(x2, y2);
+        g.stroke();
+      };
+
+      // minor grid lines
+      for (let x = 0; x <= size; x += minorSpacing) {
+        const isMajor = x % majorSpacing === 0;
+        if (!isMajor) {
+          drawLine(x + 0.5, 0, x + 0.5, size, "rgba(255,255,255,0.08)");
+        }
+      }
+      for (let y = 0; y <= size; y += minorSpacing) {
+        const isMajor = y % majorSpacing === 0;
+        if (!isMajor) {
+          drawLine(0, y + 0.5, size, y + 0.5, "rgba(255,255,255,0.08)");
+        }
+      }
+
+      // major grid lines
+      for (let x = 0; x <= size; x += majorSpacing) {
+        drawLine(x + 0.5, 0, x + 0.5, size, "rgba(255,255,255,0.2)");
+      }
+      for (let y = 0; y <= size; y += majorSpacing) {
+        drawLine(0, y + 0.5, size, y + 0.5, "rgba(255,255,255,0.2)");
+      }
+
+      // dots at major intersections
+      const drawDot = (cx, cy, radius, color) => {
+        g.fillStyle = color;
+        g.beginPath();
+        g.arc(cx, cy, radius, 0, Math.PI * 2);
+        g.fill();
+      };
+
+      gridPattern = ctx.createPattern(oc, "repeat");
+    };
 
     const state = {
       width: 0,
@@ -239,6 +295,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     };
 
     const clear = () => {
+      // black base only; panes will draw their own grid overlay
       ctx.fillStyle = state.background;
       ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     };
@@ -292,6 +349,10 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         ctx.clip();
         ctx.fillStyle = state.background;
         ctx.fillRect(x, 0, w, H);
+        // grid overlay for this pane (30% white lines)
+        if (!gridPattern) buildGridPattern();
+        ctx.fillStyle = gridPattern;
+        ctx.fillRect(x, 0, w, H);
         renderUseSprites = useSprites;
         if (mode === "centipede") {
           drawCentipede(timeMs);
@@ -304,6 +365,15 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       };
       renderPane(0, mid, false);
       renderPane(mid, W - mid, true);
+      // divider line between panes
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(mid + 0.5, 0);
+      ctx.lineTo(mid + 0.5, H);
+      ctx.stroke();
+      ctx.restore();
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -483,16 +553,6 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
           </div>
         )}
         <div style={{ flex: 1, position: "relative" }}>
-          {/* Visible grid background */}
-          <div style={{
-            position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)
-            `,
-            backgroundSize: "40px 40px",
-            backgroundPosition: "0 0",
-          }} />
           <canvas
             ref={canvasRef}
             style={{
@@ -500,10 +560,63 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
               height: "100%",
               display: "block",
               cursor: "none",
-              position: "relative",
-              zIndex: 1,
+              position: "fixed",
+              inset: 0,
+              zIndex: 0,
             }}
           />
+          {/* Error overlay (shown when hovering the Code box) */}
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              zIndex: 1,
+              opacity: showError ? 1 : 0,
+              transition: "opacity 160ms ease-in-out",
+            }}
+          >
+            <div style={{
+              color: "rgba(255,0,0,0.5)",
+              fontSize: "18vw",
+              fontWeight: 800,
+              letterSpacing: 8,
+              textTransform: "uppercase",
+              userSelect: "none",
+              textShadow: "0 2px 6px rgba(0,0,0,0.35)",
+            }}>Error</div>
+          </div>
+          {/* Code box */}
+          <div
+            onMouseEnter={() => setShowError(true)}
+            onMouseLeave={() => setShowError(false)}
+            style={{
+              position: "fixed",
+              left: 24,
+              top: 84,
+              width: 160,
+              height: 80,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.6)",
+              background: "rgba(255,255,255,0.08)",
+              color: "#e5e7eb",
+              fontWeight: 700,
+              fontSize: 24,
+              zIndex: 2,
+              boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+              backdropFilter: "blur(4px)",
+              cursor: "pointer",
+            }}
+            title="Hover to show Error"
+          >
+            Code
+          </div>
         {showControls && mode === "centipede" && (
           <div style={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}>
             <CentipedeControls
