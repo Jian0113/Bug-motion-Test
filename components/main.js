@@ -30,12 +30,12 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       legRight: 0,
       ...(spriteRotationOffset || {}),
     },
-    scales: { head: 1.28, body: 0.5, leg: 0.45 },
+    scales: { head: 0.08, body: 0.07, leg: 0.05 },
     legSpread: 1.0,
     legPairGap: 0,
     legAnchor: "knee",
-    legAnchorShift: 0,
-    legAnchorLeftPct: { x: 0.87, y: 0.27 },
+    legAnchorShift: 2,
+    legAnchorLeftPct: { x: 0.93, y: 0.27 },
     legAnchorRightPct: { x: 0.15, y: 0.27 },
   });
 
@@ -335,7 +335,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       const mid = Math.floor(W / 2);
       // inject latest control values each frame
       state.rotationOffsets = controlsRef.current.rotationOffsets || {};
-      state.scales = controlsRef.current.scales || { head: 1.0, body: 0.375, leg: 0.45 };
+      state.scales = controlsRef.current.scales || { head: 0.1, body: 0.08, leg: 0.05 };
       state.legSpread = controlsRef.current.legSpread || 1.0;
       state.legPairGap = controlsRef.current.legPairGap || 0;
       state.legAnchor = controlsRef.current.legAnchor || "mid";

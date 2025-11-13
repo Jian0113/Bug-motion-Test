@@ -124,7 +124,7 @@ export default function Home() {
           alignItems: "center",
           justifyContent: "center",
           zIndex: 50,
-        }} onClick={closeOverlay}>
+        }}>
           <div className="overlay-panel" style={{
             position: "relative",
             width: "min(100%, 1200px)",
@@ -138,7 +138,7 @@ export default function Home() {
             gap: 24,
             alignItems: "flex-start",
             padding: 12,
-          }} onClick={() => closeOverlay()}>
+          }}>
             <button
               onClick={closeOverlay}
               aria-label="닫기"
@@ -188,17 +188,14 @@ export default function Home() {
               transition: "opacity 350ms ease",
               whiteSpace: "pre-wrap",
             }}>
-{`name( ${selected.data.label} );\n\nreturn{\n  steps: [\n    'initialize()',\n    'setupScene()',\n    'drawSegments()',\n    'animate()',\n    'cleanup()',\n  ],\n  note: '이 영역은 더미 텍스트입니다. 실제 설명을 넣어주세요.'\n};\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n// click 'x' to close`}
+{`name( ${selected.data.label} );\n\nreturn{\n  steps: [\n    'initialize()',\n    'setupScene()',\n    'drawSegments()',\n    'animate()',\n    'cleanup()',\n  ],\n  note: '이 영역은 더미 텍스트입니다. 실제 설명을 넣어주세요.'\n};\n\n// click 'x' to close`}
               <div style={{ marginTop: 12 }}>
-                <a
-                  href={selected.index === 1 ? "bug-visual-centipede" : "/bug-visual"}
-                  onClick={(event) => event.stopPropagation()}
-                  style={{
+                <a href={selected.index === 1 ? "/bug-visual-centipede" : "/bug-visual-centipede"} style={{
                   padding: "8px 12px",
-                  border: "1px solid rgb(255, 255, 255)",
+                  border: "1px solid rgba(255,255,255,0.4)",
                   color: "#e5e7eb",
                   textDecoration: "none",
-                  background: "rgba(255, 0, 0, 0.5)",
+                  background: "transparent",
                 }}>Detail</a>
               </div>
             </div>
