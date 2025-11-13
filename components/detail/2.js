@@ -483,27 +483,6 @@ function WikiWindow({ position, width, onDragStart }) {
   );
 }
 
-function MainDesktop({ position, onDragStart }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: stage(position.x),
-        top: stage(position.y),
-        width: stage(1035.23),
-        borderRadius: stage(18),
-        border: "1px solid rgba(148,163,184,0.24)",
-        background: "#0b0f19",
-        boxShadow: "0 32px 60px rgba(0,0,0,0.45)",
-        overflow: "hidden",
-      }}
-    >
-      <DesktopMenu onDragStart={onDragStart} />
-      <EditorPane />
-    </div>
-  );
-}
-
 function DesktopMenu({ onDragStart }) {
   return (
     <div
