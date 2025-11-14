@@ -1,6 +1,24 @@
 import Main from "@/components/main";
+import { useEffect, useState } from "react";
+import CodeWindow from "@/components/windows/CodeWindow";
+import WikiWindow from "@/components/windows/WikiWindow";
 
 export default function BugVisualCentipedePage() {
+  // 화면 비율에 맞춰 창 스케일 계산 (Detail/2와 동일한 기준)
+  const BASE_WIDTH = 1920;
+  const BASE_HEIGHT = 1080;
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const updateScale = () => {
+      const { innerWidth, innerHeight } = window;
+      const next = Math.min(innerWidth / BASE_WIDTH, innerHeight / BASE_HEIGHT);
+      setScale(next || 1);
+    };
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
   const spritePaths = {
     centipede: {
       head: "/1_parts_head.png",
@@ -19,7 +37,29 @@ export default function BugVisualCentipedePage() {
     // 예) bodyLeft: 0, bodyRight: 0, bodyLeft2: 0, bodyRight2: 0,
     // 예) legLeft: 0, legRight: 0,
   };
-  return <Main initialMode="centipede" hideUI spritePaths={spritePaths} spriteRotationOffset={spriteRotationOffset} showControls />;
+  return (
+    <>
+      <Main
+        initialMode="centipede"
+        hideUI
+        spritePaths={spritePaths}
+        spriteRotationOffset={spriteRotationOffset}
+        showControls
+      />
+      {/* CodeWindow: 캔버스 아래 (지네가 위로 지나감) */}
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1 }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}>
+          <CodeWindow scale={scale} width={1186.202} height={1040} />
+        </div>
+      </div>
+      {/* WikiWindow: 최상단 레이어 (지네를 가림) */}
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 4 }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}>
+          <WikiWindow scale={scale} width={650.621} height={520} />
+        </div>
+      </div>
+    </>
+  );
 }
 
 

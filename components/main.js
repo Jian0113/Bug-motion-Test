@@ -11,7 +11,6 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
-  const [showError, setShowError] = useState(false);
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
     spider: { head: null, body: null, leg: null },
@@ -295,9 +294,8 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     };
 
     const clear = () => {
-      // black base only; panes will draw their own grid overlay
-      ctx.fillStyle = state.background;
-      ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      // 투명 캔버스로 유지하여 하단 UI가 보이도록 함
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     };
 
     // split-view sprite toggle flag (set inside render panes)
@@ -347,12 +345,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         ctx.beginPath();
         ctx.rect(x, 0, w, H);
         ctx.clip();
-        ctx.fillStyle = state.background;
-        ctx.fillRect(x, 0, w, H);
-        // grid overlay for this pane (30% white lines)
-        if (!gridPattern) buildGridPattern();
-        ctx.fillStyle = gridPattern;
-        ctx.fillRect(x, 0, w, H);
+        // 배경/그리드 미표시: 하단 UI가 비치도록 함
         renderUseSprites = useSprites;
         if (mode === "centipede") {
           drawCentipede(timeMs);
@@ -363,17 +356,13 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         }
         ctx.restore();
       };
-      renderPane(0, mid, false);
-      renderPane(mid, W - mid, true);
-      // divider line between panes
-      ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(mid + 0.5, 0);
-      ctx.lineTo(mid + 0.5, H);
-      ctx.stroke();
-      ctx.restore();
+      // 전체 영역에 스프라이트 모드로 1회 렌더링
+      renderPane(0, W, true);
+      // 헤드 좌표를 외부로 브로드캐스트(뷰포트 좌표)
+      if (state.segments && state.segments[0]) {
+        const head = state.segments[0];
+        window.dispatchEvent(new CustomEvent("centipedeHead", { detail: { x: head.x, y: head.y, t: performance.now() } }));
+      }
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -562,63 +551,12 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
               cursor: "none",
               position: "fixed",
               inset: 0,
-              zIndex: 0,
+              zIndex: 2,
+              pointerEvents: "none",
             }}
           />
-          {/* Error overlay (shown when hovering the Code box) */}
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              pointerEvents: "none",
-              zIndex: 1,
-              opacity: showError ? 1 : 0,
-              transition: "opacity 160ms ease-in-out",
-            }}
-          >
-            <div style={{
-              color: "rgba(255,0,0,0.5)",
-              fontSize: "18vw",
-              fontWeight: 800,
-              letterSpacing: 8,
-              textTransform: "uppercase",
-              userSelect: "none",
-              textShadow: "0 2px 6px rgba(0,0,0,0.35)",
-            }}>Error</div>
-          </div>
-          {/* Code box */}
-          <div
-            onMouseEnter={() => setShowError(true)}
-            onMouseLeave={() => setShowError(false)}
-            style={{
-              position: "fixed",
-              left: 24,
-              top: 84,
-              width: 160,
-              height: 80,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.6)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#e5e7eb",
-              fontWeight: 700,
-              fontSize: 24,
-              zIndex: 2,
-              boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-              backdropFilter: "blur(4px)",
-              cursor: "pointer",
-            }}
-            title="Hover to show Error"
-          >
-            Code
-          </div>
         {showControls && mode === "centipede" && (
-          <div style={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}>
+          <div style={{ position: "absolute", top: 12, right: 12, zIndex: 3 }}>
             <CentipedeControls
               initialValues={{
                 headScale: controlsRef.current.scales.head,
