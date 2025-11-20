@@ -1,12 +1,24 @@
 import { useEffect, useState } from "react";
 import { BugCard } from "@/components/intro-buttons";
-import CodeWindow from "@/components/windows/CodeWindow";
-import WikiWindow from "@/components/windows/WikiWindow";
 import DummyWindow from "@/components/windows/DummyWindow";
+import CmdWindow from "@/components/windows/CmdWindow";
+import dynamic from "next/dynamic";
 
 export default function WindowsPage({ open, onClose, selected }) {
   const [overlayStage, setOverlayStage] = useState("card"); // 'card' | 'text'
   const [overlayGrow, setOverlayGrow] = useState(false);
+  const MainCanvas = dynamic(() => import("@/components/main"), { ssr: false });
+  const spritePaths = {
+    centipede: {
+      head: "/1_parts_head.png",
+      body: "/1_parts_body.png",
+      leg: "/1_parts_Left.png",
+      legLeft: "/1_parts_Left.png",
+      legRight: "/1_parts_Right.png",
+      legLeft2: "/1_parts_Left_2.png",
+      legRight2: "/1_parts_Right_2.png",
+    },
+  };
 
   useEffect(() => {
     if (open) {
@@ -33,19 +45,23 @@ export default function WindowsPage({ open, onClose, selected }) {
       style={{
       position: "fixed",
       inset: 0,
-      background: "rgba(0,0,0,0.6)",
+      background: "rgba(0,0,0,0.6)", // index 페이지 어둡게
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       zIndex: 50,
     }}>
+      {/* overlay 전용 마우스-팔로우 지네 (배경 투명) */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 49, pointerEvents: "none" }}>
+        <MainCanvas initialMode="centipede" hideUI showControls={false} zIndex={49} spritePaths={spritePaths} />
+      </div>
       <div
         className="overlay-panel"
         onClick={(e) => e.stopPropagation()}
         style={{
         position: "relative",
-        width: "min(100%, 1200px)",
-        height: "auto",
+        width: "min(100%, 1800px)",
+        height: "min(50%, 900px",
         background: "transparent",
         borderRadius: 0,
         overflow: "visible",
@@ -57,6 +73,18 @@ export default function WindowsPage({ open, onClose, selected }) {
         alignItems: "flex-start",
         padding: 12,
       }}>
+        {/* 흰색 반투명 글라스 바닥 레이어 */}
+        <div style={{
+          position: "absolute",
+          inset: 6,
+          border: "2px solid rgba(255,255,255,0.9)",
+          borderRadius: 0,
+          background: "rgba(255,255,255,0.06)",
+          backdropFilter: "blur(2px)",
+          boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }} />
         <button
           onClick={onClose}
           aria-label="닫기"
@@ -65,84 +93,66 @@ export default function WindowsPage({ open, onClose, selected }) {
             top: 8,
             right: 8,
             zIndex: 10,
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             padding: 0,
-            borderRadius: 4,
-            border: "1px solid rgba(255,255,255,0.6)",
-            background: "rgba(17,24,39,0.9)",
+            borderRadius: 2,
+            border: "2px solid #ffffff",
+            background: "rgba(255,255,255,0.08)",
             color: "#ffffff",
             cursor: "pointer",
-            fontSize: 16,
+            fontSize: 22,
             lineHeight: "32px",
             textAlign: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            boxShadow: "0 10px 32px rgba(0,0,0,0.5)",
           }}
         >
-          X
+          ✕
         </button>
 
-        <BugCard
-          index={selected.index}
-          label={selected.data.label}
-          desc={selected.data.desc}
-          mode={selected.data.mode}
-          previewSrc={overlayStage === "card" ? selected.data.previewSrc : undefined}
-          videoSrc={selected.data.videoSrc && overlayStage === "text" ? selected.data.videoSrc : undefined}
-          onOpen={() => {}}
-          style={{
-            transform: overlayGrow ? "scale(1.08)" : "scale(0.96)",
-            transition: "transform 450ms ease",
-            pointerEvents: "none",
-            minWidth: 420,
-          }}
-        />
-
-        <div style={{
-          width: 420,
-          color: "#cbd5e1",
-          fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
-          fontSize: 12,
-          lineHeight: "18px",
-          opacity: overlayStage === "text" ? 1 : 0,
-          transition: "opacity 350ms ease",
-          whiteSpace: "pre-wrap",
-        }}>
-{`name( ${selected.data.label} );\n\nreturn{\n  steps: [\n    'initialize()',\n    'setupScene()',\n    'drawSegments()',\n    'animate()',\n    'cleanup()',\n  ],\n  note: '이 영역은 더미 텍스트입니다. 실제 설명을 넣어주세요.'\n};\n\n// click 'x' to close`}
-          <div style={{ marginTop: 12 }}>
-            <a href={selected.index === 1 ? "/bug-visual-centipede" : "/bug-visual-centipede"} style={{
-              padding: "8px 12px",
-              border: "1px solid rgba(255,255,255,0.4)",
-              color: "#e5e7eb",
-              textDecoration: "none",
-              background: "transparent",
-            }}>Detail</a>
-          </div>
-        </div>
-
-        <CodeWindow selected={selected} stage={overlayStage} />
-        <WikiWindow selected={selected} />
+        {/* 중앙 큰 카드 -> 더미 윈도우 안에 넣어 이동 가능 */}
+        <DummyWindow
+          title="X-ray Window"
+          number={1}
+          initialPosition={{ x: 760, y: -10 }}  // 우측 큰 창
+          width={420}
+          height={620}
+          background="transparent"
+        >
+          <BugCard
+            index={selected.index}
+            label={selected.data.label}
+            desc={selected.data.desc}
+            mode={selected.data.mode}
+            previewSrc={overlayStage === "card" ? selected.data.previewSrc : undefined}
+            videoSrc={selected.data.videoSrc && overlayStage === "text" ? selected.data.videoSrc : undefined}
+            onOpen={() => {}}
+            style={{
+              transform: "none",
+              transition: "none",
+              pointerEvents: "none",
+              minWidth: 420,
+            }}
+          />
+        </DummyWindow>
 
         {/* Draggable dummy windows (numbered) */}
         <DummyWindow
           title="Command Prompt"
           number={1}
-          initialPosition={{ x: 360, y: -120 }}
-          width={760}
-          height={220}
+          initialPosition={{ x: -60, y: -180 }}
+          width={1040}
+          height={520}
         >
-{`Microsoft Windows [Version 10.0.26200.7171]
-(c) Microsoft Corporation. All rights reserved.
-
-C:\\Users\\user>`}
+          <CmdWindow fontScale={4} />
         </DummyWindow>
 
         <DummyWindow
           title="X-ray Window"
           number={2}
-          initialPosition={{ x: -40, y: 280 }}
+          initialPosition={{ x: 0, y: 400 }}
           width={280}
-          height={220}
+          height={260}
         >
 {`>> Safe!
 >> Safe!`}
@@ -151,11 +161,22 @@ C:\\Users\\user>`}
         <DummyWindow
           title="Window A"
           number={3}
-          initialPosition={{ x: -60, y: 100 }}
-          width={300}
-          height={260}
+          initialPosition={{ x: 120, y: 320 }}
+          width={560}
+          height={220}
         >
 {`이 영역은 더미입니다. 쉽게 옮길 수 있어요.`}
+        </DummyWindow>
+
+        {/* 우측 하단 추가 Command Prompt */}
+        <DummyWindow
+          title="Command Prompt"
+          number={4}
+          initialPosition={{ x: 980, y: 420 }}
+          width={640}
+          height={340}
+        >
+          <CmdWindow fontScale={3} />
         </DummyWindow>
       </div>
     </div>

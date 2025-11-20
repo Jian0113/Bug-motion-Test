@@ -319,7 +319,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     // ============================
     const bots = [];
     let lastBotsLog = 0;
-    const MAX_BOTS = 48;
+    const MAX_BOTS = 4;
     let nextReproTs = performance.now() + 5000;
     try { console.log("[repro] schedule next at(ms):", Math.round(nextReproTs)); } catch {}
     const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -490,32 +490,39 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       drawCentipedeLib(ctx, botState, timeMs, true, getSprite);
     };
     const onClickSpawn = (e) => {
+      // Only left button spawns
+      if (e && typeof e.button === "number" && e.button !== 0) return;
       // 뷰포트 좌표를 캔버스 좌표로 매핑
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      // 개체가 없으면 스폰, 있으면 즉시 전체 분열
+      // Cap check
+      if (bots.length >= MAX_BOTS) {
+        setShowErrorOverlay(true);
+        try { console.warn("[bots] cap reached:", MAX_BOTS); } catch {}
+        return;
+      }
+      // 개체가 없으면 스폰, 있으면 분열(상한선 내)
       if (bots.length === 0) {
         bots.push(newBot(x, y));
         try { console.log("[bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length); } catch {}
-      } else {
-        const nowTs = performance.now();
-        const before = bots.length;
-        const parents = bots.splice(0, bots.length);
-        for (let p of parents) {
-          if (bots.length >= MAX_BOTS - 1) {
-            bots.push(p);
-            continue;
-          }
-          const c1 = cloneFromParent(p, -1, nowTs);
-          const c2 = cloneFromParent(p, +1, nowTs);
-          ensureBotInBounds(c1);
-          ensureBotInBounds(c2);
-          bots.push(c1, c2);
-        }
-        nextReproTs = nowTs + 5000; // 다음 자동 분열 예약
-        try { console.log("[repro] manual split fired:", before, "->", bots.length, "next at(ms):", Math.round(nextReproTs)); } catch {}
+        return;
       }
+      const nowTs = performance.now();
+      const before = bots.length;
+      const parents = bots.splice(0, before);
+      for (let p of parents) {
+        if (bots.length >= MAX_BOTS) { bots.push(p); continue; }
+        const c1 = cloneFromParent(p, -1, nowTs);
+        ensureBotInBounds(c1);
+        bots.push(c1);
+        if (bots.length >= MAX_BOTS) { continue; }
+        const c2 = cloneFromParent(p, +1, nowTs);
+        ensureBotInBounds(c2);
+        bots.push(c2);
+      }
+      nextReproTs = nowTs + 5000;
+      try { console.log("[repro] manual split fired:", before, "->", bots.length, "cap:", MAX_BOTS); } catch {}
     };
 
     const drawGecko = (timeMs) => {
@@ -550,8 +557,8 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         updateBot(bots[i], timeMs);
         drawBot(bots[i], timeMs);
       }
-      // 임계치(>=16) 도달 시 노이즈/ERROR 오버레이 표시 (1회 트리거)
-      if (!overlayShownRef.current && bots.length >= 16) {
+      // cap 초과 시 ERROR 오버레이 표시 (1회 트리거)
+      if (!overlayShownRef.current && bots.length > MAX_BOTS) {
         overlayShownRef.current = true;
         try { console.log("[overlay] ERROR overlay shown (bots:", bots.length, ")"); } catch {}
         setShowErrorOverlay(true);

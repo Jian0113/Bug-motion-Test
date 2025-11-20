@@ -20,6 +20,7 @@ export default function Home() {
     centipede: {
       head: "/1_parts_head.png",
       body: "/1_parts_body.png",
+      leg: "/1_parts_Left.png",
       legLeft: "/1_parts_Left.png",
       legRight: "/1_parts_Right.png",
       legLeft2: "/1_parts_Left_2.png",

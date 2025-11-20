@@ -10,6 +10,7 @@ export default function DummyWindow({
   width = 360,
   height = 180,
   children,
+  background = "#000000",
 }) {
   const { position, startDrag } = useDraggablePosition(1, initialPosition);
   const [z, setZ] = useState(++__zCounter);
@@ -24,7 +25,7 @@ export default function DummyWindow({
         top: `${position.y}px`,
         width,
         height,
-        background: "#000000",
+        background,
         border: "1px solid #ffffff",
         borderRadius: 0,
         color: "#e5e7eb",
