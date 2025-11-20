@@ -16,6 +16,8 @@ const WIKI_HEIGHT = 520; // 절반 높이
 export default function DetailTwo() {
   const [scale, setScale] = useState(1);
   const canvasRef = useRef(null);
+  // 동작 모드: 'plane' | 'rotate'
+  const modeRef = useRef("plane"); // 기본 plane
 
   useEffect(() => {
     try { console.log("[detail/2] mount, initial scale:", scale); } catch {}
@@ -25,6 +27,19 @@ export default function DetailTwo() {
       const next = Math.min(innerWidth / BASE_WIDTH, innerHeight / BASE_HEIGHT);
       setScale(next || 1);
     };
+
+    // URL 쿼리로 모드 제어 (?move=rotate | ?move=plane)
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const m = (sp.get("move") || sp.get("mode") || "").toLowerCase();
+      if (m === "rotate" || m === "plane") {
+        modeRef.current = m;
+        console.log("[detail/2] mode:", modeRef.current);
+      } else {
+        modeRef.current = "plane";
+        console.log("[detail/2] mode(default):", modeRef.current);
+      }
+    } catch {}
 
     updateScale();
     window.addEventListener("resize", updateScale);
@@ -118,6 +133,9 @@ export default function DetailTwo() {
       const segs = Array.from({ length: 60 }, (_, i) => ({ x: x - i * conf.spacing, y }));
       const cw = canvas.clientWidth || 800;
       const ch = canvas.clientHeight || 600;
+      const tx = clamp(x + 120, 24, cw - 24) - x;
+      const ty = clamp(y + 40, 24, ch - 24) - y;
+      const initDir = Math.atan2(ty, tx || 1e-6);
       return {
         segments: segs,
         target: { x: clamp(x + 120, 24, cw - 24), y: clamp(y + 40, 24, ch - 24) },
@@ -126,6 +144,12 @@ export default function DetailTwo() {
         spawnEndTs: 0,
         spawnDir: 0,
         speed: conf.speed,
+        // 회전 완화/제어 파라미터(rotate 모드에서만 사용)
+        ...(modeRef.current === "rotate" ? {
+          dirAngle: initDir,
+          turnSplit: 0.05,   // 분열 중 최대 회전 속도(rad/frame)
+          turnNormal: 0.12,  // 평상시 최대 회전 속도(rad/frame)
+        } : {}),
       };
     };
 
@@ -145,18 +169,33 @@ export default function DetailTwo() {
       const d = Math.hypot(dx, dy) || 1;
       const tx = dx / d, ty = dy / d;
       const nx = -ty, ny = tx;
+      // plane/rotate에 따라 초기 파라미터 분기
+      const isRotate = modeRef.current === "rotate";
       const child = {
         segments: parent.segments.map(p => ({ x: p.x, y: p.y })),
-        target: { x: head.x + tx * 160 + nx * side * 60, y: head.y + ty * 160 + ny * side * 60 },
+        target: isRotate
+          ? { x: head.x + tx * 240 + nx * side * 140, y: head.y + ty * 240 + ny * side * 140 }
+          : { x: head.x + tx * 220 + nx * side * 90,  y: head.y + ty * 220 + ny * side * 90  },
         lastRetarget: timeMs || performance.now(),
-        retargetDelay: rr(900, 2100),
-        spawnEndTs: (timeMs || performance.now()) + 450,
+        retargetDelay: isRotate ? rr(900, 2100) : rr(700, 1600),
+        spawnEndTs: (timeMs || performance.now()) + (isRotate ? 700 : 450),
         spawnDir: side,
-        speed: rr(2.5, 5.0),
+        speed: isRotate
+          ? Math.min(8.5, (parent.speed || conf.speed) * rr(1.05, 1.25))
+          : Math.min(8.5, (parent.speed || conf.speed) * rr(1.15, 1.35)),
+        ...(isRotate ? {
+          burstStartAt: (timeMs || performance.now()),
+          burstEndAt: (timeMs || performance.now()) + rr(900, 1500),
+          burstMul: rr(1.8, 2.6),
+          dirAngle: Math.atan2(ty, tx || 1e-6),
+          turnSplit: 0.05,
+          turnNormal: 0.12,
+        } : {}),
       };
-      // 살짝 옆으로 시작
-      child.segments[0].x += nx * side * 6;
-      child.segments[0].y += ny * side * 6;
+      // 시작 지점 오프셋도 모드에 맞춰 조정
+      const startOffset = isRotate ? 12 : 6;
+      child.segments[0].x += nx * side * startOffset;
+      child.segments[0].y += ny * side * startOffset;
       // 초기 타겟을 화면 안으로 클램핑
       const cw = canvas.clientWidth || 800;
       const ch = canvas.clientHeight || 600;
@@ -183,9 +222,38 @@ export default function DetailTwo() {
       const dx = bot.target.x - head.x;
       const dy = bot.target.y - head.y;
       const dist = Math.hypot(dx, dy) || 0.0001;
-      const step = Math.min(bot.speed, dist);
-      head.x += (dx / dist) * step;
-      head.y += (dy / dist) * step;
+      if (modeRef.current === "rotate") {
+        // 회전 제한: 분열 중에는 작은 회전 허용
+        const desired = Math.atan2(dy, dx);
+        const limit = (bot.spawnEndTs && nowTs < bot.spawnEndTs + 120) ? (bot.turnSplit || 0.05) : (bot.turnNormal || 0.12);
+        const wrap = (a) => {
+          while (a > Math.PI) a -= Math.PI * 2;
+          while (a < -Math.PI) a += Math.PI * 2;
+          return a;
+        };
+        const dAng = wrap(desired - (bot.dirAngle || desired));
+        const clampedDA = Math.max(-limit, Math.min(limit, dAng));
+        bot.dirAngle = (bot.dirAngle || desired) + clampedDA;
+        // 스무스 버스트 이징 (easeInOutQuad)
+        let burstMul = 1;
+        if (bot.burstStartAt && bot.burstEndAt && nowTs < bot.burstEndAt) {
+          const u = Math.max(0, Math.min(1, (nowTs - bot.burstStartAt) / (bot.burstEndAt - bot.burstStartAt)));
+          const e = u < 0.5 ? 2 * u * u : -1 + (4 - 2 * u) * u;
+          burstMul = 1 + ((bot.burstMul || 2.0) - 1) * e;
+        } else if (bot.burstEndAt && nowTs >= bot.burstEndAt) {
+          bot.burstStartAt = null;
+          bot.burstEndAt = null;
+        }
+        const effSpeed = Math.max(0.5, bot.speed * burstMul);
+        const step = Math.min(effSpeed, dist);
+        head.x += Math.cos(bot.dirAngle) * step;
+        head.y += Math.sin(bot.dirAngle) * step;
+      } else {
+        // plane: 간단한 직진 이동(버스트/회전제어 없음)
+        const step = Math.min(bot.speed, dist);
+        head.x += (dx / dist) * step;
+        head.y += (dy / dist) * step;
+      }
       // 화면 경계 클램핑 및 재목표 설정
       const cw2 = canvas.clientWidth || 800;
       const ch2 = canvas.clientHeight || 600;
@@ -202,14 +270,16 @@ export default function DetailTwo() {
         bot.lastRetarget = nowTs;
         bot.retargetDelay = rr(900, 2000);
       }
-      // split 애니메이션: 머리 양옆으로 벌어짐
+      // split 애니메이션: 머리 양옆으로 벌어짐 (모드별 강도/지속시간)
       if (bot.spawnEndTs && nowTs < bot.spawnEndTs && bot.spawnDir) {
         const neck = bot.segments[1] || head;
         const hx = head.x - neck.x, hy = head.y - neck.y;
         const hd = Math.hypot(hx, hy) || 1;
         const nx = -hy / hd, ny = (hx / hd);
-        const t = 1 - Math.max(0, bot.spawnEndTs - nowTs) / 450;
-        const push = 18 * t;
+        const isRotate = modeRef.current === "rotate";
+        const dur = isRotate ? 700 : 450;
+        const t = 1 - Math.max(0, bot.spawnEndTs - nowTs) / dur; // 0->1
+        const push = (isRotate ? 28 : 24) * t;
         head.x += nx * bot.spawnDir * push;
         head.y += ny * bot.spawnDir * push;
       }

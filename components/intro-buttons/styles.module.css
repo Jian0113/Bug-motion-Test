@@ -48,3 +48,31 @@
   display: block;
 }
 
+.previewStack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.previewVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+
+.previewStack .previewImg {
+  transition: opacity .2s ease;
+}
+
+.card:hover .previewVideo {
+  opacity: 1;
+}
+
+.card:hover .previewStack .previewImg {
+  opacity: 0;
+}
+

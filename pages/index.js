@@ -1,16 +1,55 @@
 import Head from "next/head";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { introButtons, BugCard } from "@/components/intro-buttons";
+import { useBugs } from "@/context/BugContext";
 
 // 동적 로드로 클라이언트 전용 캔버스 의존성 회피
 const MainCanvas = dynamic(() => import("@/components/main"), { ssr: false });
 
 export default function Home() {
+  const { released, releaseBug, clearReleased } = useBugs();
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [activeMode, setActiveMode] = useState("centipede");
   const [overlayStage, setOverlayStage] = useState("card"); // 'card' | 'text'
   const [overlayGrow, setOverlayGrow] = useState(false);
+  const [centipedeEscaped, setCentipedeEscaped] = useState(false);
+
+  const spritePaths = {
+    centipede: {
+      head: "/1_parts_head.png",
+      body: "/1_parts_body.png",
+      legLeft: "/1_parts_Left.png",
+      legRight: "/1_parts_Right.png",
+      legLeft2: "/1_parts_Left_2.png",
+      legRight2: "/1_parts_Right_2.png",
+    },
+  };
+
+  // 새로고침(초기 진입) 시 카운트/플래그 초기화
+  useEffect(() => {
+    try { localStorage.removeItem("centipedeReleased"); } catch {}
+    try { clearReleased(); } catch {}
+    setCentipedeEscaped(false);
+  }, [clearReleased]);
+
+  // localStorage에서 탈출 여부 복구(+Context 동기화)
+  useEffect(() => {
+    let escaped = false;
+    try {
+      escaped = localStorage.getItem("centipedeReleased") === "1";
+    } catch {}
+    if (escaped) {
+      setCentipedeEscaped(true);
+      try { releaseBug("centipede"); } catch {}
+    }
+  }, [releaseBug]);
+  // Context(released) 변화 시 반영
+  useEffect(() => {
+    if (released?.includes("centipede")) {
+      setCentipedeEscaped(true);
+    }
+  }, [released]);
 
   // 버튼 데이터는 components/intro-buttons 폴더의 개별 파일(n1~n12.js)로 모듈화됨
 
@@ -28,6 +67,12 @@ export default function Home() {
     setOverlayOpen(false);
     setOverlayGrow(false);
     setOverlayStage("card");
+    // Centipede 카드의 오버레이를 X로 닫을 때도 즉시 '탈출' 연출 활성화
+    if (activeMode === "centipede") {
+      try { localStorage.setItem("centipedeReleased", "1"); } catch {}
+      try { releaseBug("centipede"); } catch {}
+      setCentipedeEscaped(true);
+    }
   };
 
   const selected = useMemo(() => {
@@ -51,6 +96,12 @@ export default function Home() {
         padding: 24,
         position: "relative",
       }}>
+        {/* 배경 자율 지네: 디테일 닫힘 후 탈출 상태에서만 렌더 */}
+        {centipedeEscaped && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none" }}>
+            <MainCanvas initialMode="centipede" hideUI spritePaths={spritePaths} showControls={false} zIndex={1} />
+          </div>
+        )}
         <div className="grid-bg" />
         {/* Header */}
         <header style={{
@@ -59,6 +110,8 @@ export default function Home() {
           padding: "24px 0",
           background: "rgba(0,0,0,0.3)",
           borderBottom: "1px solid rgba(255,255,255,0.2)",
+          position: "relative",
+          zIndex: 2,
         }}>
           <h1 style={{
             fontSize: 44,
@@ -82,6 +135,8 @@ export default function Home() {
           padding: 40,
           boxShadow: "none",
           border: "none",
+          position: "relative",
+          zIndex: 2,
         }}>
 
           <div style={{
@@ -90,16 +145,89 @@ export default function Home() {
             gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))",
             gap: 24,
           }}>
-            {introButtons.map((c, idx) => (
-              <BugCard key={idx}
-                index={idx + 1}
-                label={c.label}
-                desc={c.desc}
-                mode={c.mode}
-                previewSrc={c.previewSrc}
-                onOpen={openOverlay}
-              />
-            ))}
+            {introButtons.map((c, idx) => {
+              const isFirstCentipede = idx === 0 && c.mode === "centipede";
+              if (isFirstCentipede && centipedeEscaped) {
+                // 404 글리치 카드 (지네 탈출)
+                return (
+                  <div key={idx} style={{
+                    textAlign: "left",
+                    background: "linear-gradient(180deg, #0b0b0b, #0a0a0a)",
+                    border: "1px solid rgba(255,255,255,0.7)",
+                    borderRadius: 0,
+                    padding: 24,
+                    minHeight: 520,
+                    overflow: "hidden",
+                    position: "relative",
+                  }}>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace",
+                      fontSize: 14,
+                      color: "#d1d5db",
+                      paddingBottom: 8,
+                      borderBottom: "1px solid rgba(255,255,255,0.16)",
+                      marginBottom: 12,
+                    }}>
+                      <span style={{ color: "#9ca3af" }}>#1</span>
+                      <span style={{ color: "#93c5fd" }}>Bug</span>
+                      <span style={{ color: "#9ca3af" }}>(</span>
+                      <span style={{ color: "#f59e0b" }}>Centipede</span>
+                      <span style={{ color: "#9ca3af" }}>)</span>
+                      <span style={{ color: "#9ca3af" }}>;</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 0 }}>
+                      섹션에서 지네가 탈출했습니다. Not Found 404
+                    </div>
+                    <div style={{
+                      height: 420,
+                      marginTop: 12,
+                      borderRadius: 0,
+                      background:
+                        "repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, rgba(0,0,0,0) 2px 4px)," +
+                        "repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, rgba(0,0,0,0) 1px 2px)",
+                      border: "1px solid rgba(255,255,255,0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        position: "absolute",
+                        inset: 0,
+                        mixBlendMode: "screen",
+                        background: "radial-gradient(ellipse at center, rgba(255,0,0,0.08), rgba(0,0,0,0) 60%)",
+                      }} />
+                      <div style={{
+                        position: "relative",
+                        color: "#ffffff",
+                        fontSize: 96,
+                        fontWeight: 900,
+                        letterSpacing: 6,
+                        textShadow: "2px 0 #ff0080, -2px 0 #00e5ff, 0 0 8px rgba(255,255,255,0.5)",
+                        transform: "skewX(-6deg)",
+                      }}>
+                        404
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <BugCard key={idx}
+                  index={idx + 1}
+                  label={c.label}
+                  desc={c.desc}
+                  mode={c.mode}
+                  previewSrc={c.previewSrc}
+                  videoSrc={isFirstCentipede ? c.videoSrc : undefined}
+                  onOpen={openOverlay}
+                />
+              );
+            })}
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 12 }}>

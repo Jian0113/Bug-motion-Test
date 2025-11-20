@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 const CentipedeControls = dynamic(() => import("@/components/controls/CentipedeControls"), { ssr: false });
 
-export default function Main({ initialMode = "centipede", hideUI = false, spritePaths = {}, spriteRotationOffset = {}, showControls = true } = {}) {
+export default function Main({ initialMode = "centipede", hideUI = false, spritePaths = {}, spriteRotationOffset = {}, showControls = true, zIndex = 2 } = {}) {
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
@@ -809,7 +809,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
               cursor: "none",
               position: "fixed",
               inset: 0,
-              zIndex: 2,
+              zIndex: zIndex,
               pointerEvents: "none",
             }}
           />

@@ -1,9 +1,11 @@
 import Main from "@/components/main";
 import { useEffect, useState } from "react";
+import { useBugs } from "@/context/BugContext";
 import CodeWindow from "@/components/windows/CodeWindow";
 import WikiWindow from "@/components/windows/WikiWindow";
 
 export default function BugVisualCentipedePage() {
+  const { releaseBug } = useBugs();
   // 화면 비율에 맞춰 창 스케일 계산 (Detail/2와 동일한 기준)
   const BASE_WIDTH = 1920;
   const BASE_HEIGHT = 1080;
@@ -18,6 +20,26 @@ export default function BugVisualCentipedePage() {
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
   }, []);
+  // 페이지를 떠날 때(닫기/뒤로가기 포함) 지네 탈출 기록
+  useEffect(() => {
+    const markReleased = () => {
+      try {
+        localStorage.setItem("centipedeReleased", "1");
+      } catch {}
+      try {
+        releaseBug("centipede");
+      } catch {}
+    };
+    const onBeforeUnload = () => markReleased();
+    const onPageHide = () => markReleased();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      markReleased(); // 컴포넌트 언마운트 시에도 기록
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [releaseBug]);
 
   const spritePaths = {
     centipede: {
