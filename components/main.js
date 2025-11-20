@@ -51,9 +51,11 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    try { console.log("[main] mounted, mode:", mode); } catch {}
 
     let animationFrameId = 0;
     let running = true;
+    let lastRafLog = 0;
 
     // cached grid pattern for background fill (multi-level grid)
     let gridPattern = null;
@@ -310,6 +312,141 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       drawCentipedeLib(ctx, state, timeMs, renderUseSprites, getSprite);
     };
 
+    // ============================
+    // Autopilot clone agents
+    // ============================
+    const bots = [];
+    let lastBotsLog = 0;
+    const MAX_BOTS = 48;
+    let nextReproTs = performance.now() + 5000;
+    try { console.log("[repro] schedule next at(ms):", Math.round(nextReproTs)); } catch {}
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const randRange = (a, b) => a + Math.random() * (b - a);
+    const canvasClientSize = () => ({
+      w: canvas.clientWidth || window.innerWidth,
+      h: canvas.clientHeight || window.innerHeight,
+    });
+    const newBot = (x, y) => {
+      const { w, h } = canvasClientSize();
+      const bot = {
+        segments: Array.from({ length: 48 }, (_, i) => ({ x: x - i * state.spacing, y })),
+        spacing: state.spacing,
+        speed: randRange(2.5, 5.0),
+        target: { x: clamp(x + randRange(-120, 120), 24, w - 24), y: clamp(y + randRange(-120, 120), 24, h - 24) },
+        lastRetarget: performance.now(),
+        retargetDelay: randRange(1200, 2600),
+        spawnEndTs: 0, // splitting animation end
+        spawnDir: 0,   // -1(left) or +1(right)
+        rotationOffsets: controlsRef.current.rotationOffsets || {},
+        legSpread: controlsRef.current.legSpread || 1.0,
+        legPairGap: controlsRef.current.legPairGap || 0,
+        legAnchor: controlsRef.current.legAnchor || "knee",
+        legAnchorShift: controlsRef.current.legAnchorShift || 2,
+        legAnchorLeftPct: controlsRef.current.legAnchorLeftPct || { x: 0.93, y: 0.27 },
+        legAnchorRightPct: controlsRef.current.legAnchorRightPct || { x: 0.15, y: 0.27 },
+      };
+      return bot;
+    };
+    const cloneFromParent = (parent, side, timeMs) => {
+      // side: -1(left) or +1(right)
+      const head = parent.segments[0];
+      const neck = parent.segments[1] || head;
+      const dx = head.x - neck.x, dy = head.y - neck.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const tx = dx / d, ty = dy / d;
+      const nx = -ty, ny = tx;
+      const child = {
+        segments: parent.segments.map(p => ({ x: p.x, y: p.y })),
+        spacing: parent.spacing,
+        speed: randRange(2.5, 5.0),
+        target: { x: head.x + tx * 160 + nx * side * 60, y: head.y + ty * 160 + ny * side * 60 },
+        lastRetarget: timeMs || performance.now(),
+        retargetDelay: randRange(900, 2100),
+        spawnEndTs: (timeMs || performance.now()) + 450,
+        spawnDir: side,
+        rotationOffsets: controlsRef.current.rotationOffsets || {},
+        legSpread: controlsRef.current.legSpread || 1.0,
+        legPairGap: controlsRef.current.legPairGap || 0,
+        legAnchor: controlsRef.current.legAnchor || "knee",
+        legAnchorShift: controlsRef.current.legAnchorShift || 2,
+        legAnchorLeftPct: controlsRef.current.legAnchorLeftPct || { x: 0.93, y: 0.27 },
+        legAnchorRightPct: controlsRef.current.legAnchorRightPct || { x: 0.15, y: 0.27 },
+      };
+      // 초기 위치를 약간 옆으로 치우치게 시작
+      child.segments[0].x += nx * side * 6;
+      child.segments[0].y += ny * side * 6;
+      return child;
+    };
+    const updateBot = (bot, timeMs) => {
+      const head = bot.segments[0];
+      // 주기적으로 목표 재설정
+      const nowTs = timeMs || performance.now();
+      const { w, h } = canvasClientSize();
+      const near = Math.hypot(bot.target.x - head.x, bot.target.y - head.y) < 28;
+      if (near || nowTs - bot.lastRetarget > bot.retargetDelay) {
+        bot.target = {
+          x: clamp(head.x + randRange(-240, 240), 24, w - 24),
+          y: clamp(head.y + randRange(-240, 240), 24, h - 24),
+        };
+        bot.lastRetarget = nowTs;
+        bot.retargetDelay = randRange(900, 2200);
+      }
+      // 목표로 이동
+      const dx = bot.target.x - head.x;
+      const dy = bot.target.y - head.y;
+      const dist = Math.hypot(dx, dy) || 0.0001;
+      const step = Math.min(bot.speed, dist);
+      head.x += (dx / dist) * step;
+      head.y += (dy / dist) * step;
+      // 스폰 분열 애니메이션: 머리 양옆으로 벌어짐
+      if (bot.spawnEndTs && nowTs < bot.spawnEndTs && bot.spawnDir) {
+        const neck = bot.segments[1] || head;
+        const hx = head.x - neck.x, hy = head.y - neck.y;
+        const hd = Math.hypot(hx, hy) || 1;
+        const nx = -hy / hd, ny = (hx / hd);
+        const t = 1 - Math.max(0, bot.spawnEndTs - nowTs) / 450; // 0->1
+        const push = 18 * t; // 옆으로 벌어지는 양
+        head.x += nx * bot.spawnDir * push;
+        head.y += ny * bot.spawnDir * push;
+      }
+      // 체인 따라오도록 정렬
+      for (let i = 1; i < bot.segments.length; i++) {
+        const prev = bot.segments[i - 1];
+        const seg = bot.segments[i];
+        const vx = seg.x - prev.x;
+        const vy = seg.y - prev.y;
+        const d = Math.hypot(vx, vy) || 0.0001;
+        const desiredSpacing = i === 1 ? state.spacing * 3 : state.spacing;
+        seg.x = prev.x + (vx / d) * desiredSpacing;
+        seg.y = prev.y + (vy / d) * desiredSpacing;
+      }
+    };
+    const drawBot = (bot, timeMs) => {
+      // 최신 컨트롤 값을 주입하여 동일 룩앤필 유지
+      const botState = {
+        segments: bot.segments,
+        rotationOffsets: controlsRef.current.rotationOffsets || bot.rotationOffsets,
+        scales: controlsRef.current.scales || { head: 0.08, body: 0.07, leg: 0.05 },
+        legSpread: controlsRef.current.legSpread ?? bot.legSpread,
+        legPairGap: controlsRef.current.legPairGap ?? bot.legPairGap,
+        legAnchor: controlsRef.current.legAnchor ?? bot.legAnchor,
+        legAnchorShift: controlsRef.current.legAnchorShift ?? bot.legAnchorShift,
+        legAnchorLeftPct: controlsRef.current.legAnchorLeftPct ?? bot.legAnchorLeftPct,
+        legAnchorRightPct: controlsRef.current.legAnchorRightPct ?? bot.legAnchorRightPct,
+      };
+      drawCentipedeLib(ctx, botState, timeMs, true, getSprite);
+    };
+    const onClickSpawn = (e) => {
+      // 뷰포트 좌표를 캔버스 좌표로 매핑
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      bots.push(newBot(x, y));
+      try {
+        console.log("[bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length);
+      } catch {}
+    };
+
     const drawGecko = (timeMs) => {
       drawGeckoLib(ctx, state, timeMs);
     };
@@ -319,6 +456,39 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       clear();
       lengthenOrShorten();
       followChain(timeMs);
+      // 5초마다 전체 개체 분열 (N -> 2N)
+      const nowTs = timeMs || performance.now();
+      if (bots.length > 0 && nowTs >= nextReproTs) {
+        const before = bots.length;
+        const parents = bots.splice(0, bots.length);
+        for (let p of parents) {
+          if (bots.length >= MAX_BOTS - 1) { // 여유 1 남기기
+            bots.push(p);
+            continue;
+          }
+          const c1 = cloneFromParent(p, -1, nowTs);
+          const c2 = cloneFromParent(p, +1, nowTs);
+          bots.push(c1, c2);
+        }
+        nextReproTs = nowTs + 5000;
+        try { console.log("[repro] split fired:", before, "->", bots.length, "next at(ms):", Math.round(nextReproTs)); } catch {}
+      }
+      // 자동 에이전트 업데이트/렌더
+      for (let i = 0; i < bots.length; i++) {
+        updateBot(bots[i], timeMs);
+        drawBot(bots[i], timeMs);
+      }
+      if ((timeMs || 0) - lastBotsLog > 1000) {
+        lastBotsLog = timeMs || 0;
+        const nowMs = timeMs || performance.now();
+        const remain = Math.max(0, Math.round(nextReproTs - nowMs));
+        const reason = bots.length === 0
+          ? "skip(no bots)"
+          : (bots.length >= MAX_BOTS ? "skip(max cap)" : (remain > 0 ? "waiting" : "ready"));
+        try {
+          console.log("[bots] render count:", bots.length, "| [repro]", reason, "remain(ms):", remain, "target(ms):", Math.round(nextReproTs));
+        } catch {}
+      }
       // expose segments for external draw functions & body velocity estimate
       const lastSegments = canvas.__segments;
       canvas.__segments = state.segments;
@@ -358,6 +528,10 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       };
       // 전체 영역에 스프라이트 모드로 1회 렌더링
       renderPane(0, W, true);
+      if ((timeMs || 0) - lastRafLog > 1000) {
+        lastRafLog = timeMs || 0;
+        try { console.log("[main] raf alive"); } catch {}
+      }
       // 헤드 좌표를 외부로 브로드캐스트(뷰포트 좌표)
       if (state.segments && state.segments[0]) {
         const head = state.segments[0];
@@ -373,6 +547,9 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
 
     window.addEventListener("resize", onResize);
     window.addEventListener("mousemove", onMouseMove);
+    // 캡처 단계에서 포인터 다운을 받아 드래그 헤더 등에서의 stopPropagation 영향을 회피
+    window.addEventListener("pointerdown", onClickSpawn, { passive: true, capture: true });
+    try { console.log("[main] listeners attached (resize, mousemove, pointerdown-capture)"); } catch {}
     animationFrameId = requestAnimationFrame(render);
 
     return () => {
@@ -380,6 +557,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("pointerdown", onClickSpawn, { capture: true });
     };
   }, [mode]);
 
