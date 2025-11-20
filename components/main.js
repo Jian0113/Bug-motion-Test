@@ -334,14 +334,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         segments: Array.from({ length: 48 }, (_, i) => ({ x: x - i * state.spacing, y })),
         spacing: state.spacing,
         speed: randRange(2.5, 5.0),
-        // 자연스러운 가속/감속을 위한 속도 상태
-        speedBase: randRange(2.5, 5.0),
-        speedCurr: 0,              // 프레임별 보간된 속도
-        speedTarget: 0,            // 목표 속도(버스트 시 상승)
-        nextSpeedEventAt: performance.now() + randRange(1200, 4000),
-        speedBurstEndAt: 0,
-        speedJitterPhase: Math.random() * Math.PI * 2,
-        target: { x: clamp(x + randRange(-120, 120), 24, w - 24), y: clamp(y + randRange(-120, 120), 24, h - 24) },
+        target: { x: clamp(x + randRange(-120, 120), 48, w - 48), y: clamp(y + randRange(-120, 120), 48, h - 48) },
         lastRetarget: performance.now(),
         retargetDelay: randRange(1200, 2600),
         spawnEndTs: 0, // splitting animation end
@@ -356,6 +349,27 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       };
       return bot;
     };
+    // 생성 직후 안전 보정
+    const ensureBotInBounds = (bot) => {
+      const { w, h } = canvasClientSize();
+      // 모든 세그먼트를 화면 내부로 이동(필요 시 동일 오프셋 적용)
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const s of bot.segments) {
+        if (!isFinite(s.x) || !isFinite(s.y)) { s.x = w * 0.5; s.y = h * 0.5; }
+        minX = Math.min(minX, s.x); minY = Math.min(minY, s.y);
+        maxX = Math.max(maxX, s.x); maxY = Math.max(maxY, s.y);
+      }
+      let shiftX = 0, shiftY = 0;
+      if (minX < 12) shiftX = 12 - minX;
+      if (minY < 12) shiftY = 12 - minY;
+      if (maxX > w - 12) shiftX = Math.min(shiftX || 0, (w - 12) - maxX);
+      if (maxY > h - 12) shiftY = Math.min(shiftY || 0, (h - 12) - maxY);
+      if (shiftX || shiftY) {
+        for (const s of bot.segments) { s.x += shiftX; s.y += shiftY; }
+      }
+      bot.target.x = clamp(bot.target.x, 48, w - 48);
+      bot.target.y = clamp(bot.target.y, 48, h - 48);
+    };
     const cloneFromParent = (parent, side, timeMs) => {
       // side: -1(left) or +1(right)
       const head = parent.segments[0];
@@ -368,12 +382,6 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         segments: parent.segments.map(p => ({ x: p.x, y: p.y })),
         spacing: parent.spacing,
         speed: randRange(2.5, 5.0),
-        speedBase: randRange(2.5, 5.0),
-        speedCurr: 0,
-        speedTarget: 0,
-        nextSpeedEventAt: (timeMs || performance.now()) + randRange(1200, 4000),
-        speedBurstEndAt: 0,
-        speedJitterPhase: Math.random() * Math.PI * 2,
         target: { x: head.x + tx * 160 + nx * side * 60, y: head.y + ty * 160 + ny * side * 60 },
         lastRetarget: timeMs || performance.now(),
         retargetDelay: randRange(900, 2100),
@@ -410,33 +418,23 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         bot.lastRetarget = nowTs;
         bot.retargetDelay = randRange(900, 2200);
       }
-      // 속도 이벤트(랜덤 버스트) 스케줄링
-      if (bot.speedBurstEndAt && nowTs >= bot.speedBurstEndAt) {
-        bot.speedBurstEndAt = 0;
-        bot.speedTarget = bot.speedBase;
-        bot.nextSpeedEventAt = nowTs + randRange(1500, 6000);
-      }
-      if (!bot.speedBurstEndAt && nowTs >= bot.nextSpeedEventAt) {
-        const mult = randRange(1.5, 2.3);           // 가속 배수
-        const dur = randRange(500, 1400);           // 가속 지속 시간
-        bot.speedTarget = bot.speedBase * mult;
-        bot.speedBurstEndAt = nowTs + dur;
-      }
-      // 서서히 보간(자연스러운 가속/감속)
-      if (bot.speedCurr === 0) bot.speedCurr = bot.speedBase;
-      if (bot.speedTarget === 0) bot.speedTarget = bot.speedBase;
-      bot.speedCurr += (bot.speedTarget - bot.speedCurr) * 0.06;
-      // 잔진동(jitter)로 자연스러움 추가
-      bot.speedJitterPhase = (bot.speedJitterPhase || 0) + 0.08;
-      const jitter = 1 + 0.08 * Math.sin(bot.speedJitterPhase);
-      const effSpeed = Math.max(0.5, bot.speedCurr * jitter);
       // 목표로 이동
       const dx = bot.target.x - head.x;
       const dy = bot.target.y - head.y;
       const dist = Math.hypot(dx, dy) || 0.0001;
-      const step = Math.min(effSpeed, dist);
+      const step = Math.min(bot.speed, dist);
       head.x += (dx / dist) * step;
       head.y += (dy / dist) * step;
+      // 만약 타겟과 지나치게 가까워져 정체되면 즉시 재목표
+      if (dist < 2) {
+        const __wh2 = canvasClientSize();
+        bot.target = {
+          x: clamp(head.x + randRange(-200, 200), 24, __wh2.w - 24),
+          y: clamp(head.y + randRange(-200, 200), 24, __wh2.h - 24),
+        };
+        bot.lastRetarget = nowTs;
+        bot.retargetDelay = randRange(900, 2000);
+      }
       // 화면 경계 클램핑 및 튕김형 재목표 설정
       const __wh = canvasClientSize();
       const w2 = __wh.w, h2 = __wh.h;
@@ -511,6 +509,8 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
           }
           const c1 = cloneFromParent(p, -1, nowTs);
           const c2 = cloneFromParent(p, +1, nowTs);
+          ensureBotInBounds(c1);
+          ensureBotInBounds(c2);
           bots.push(c1, c2);
         }
         nextReproTs = nowTs + 5000; // 다음 자동 분열 예약

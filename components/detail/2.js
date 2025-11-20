@@ -126,13 +126,6 @@ export default function DetailTwo() {
         spawnEndTs: 0,
         spawnDir: 0,
         speed: conf.speed,
-        // 자연스러운 가속/감속 상태
-        speedBase: conf.speed,
-        speedCurr: 0,
-        speedTarget: 0,
-        nextSpeedEventAt: performance.now() + rr(1200, 4000),
-        speedBurstEndAt: 0,
-        speedJitterPhase: Math.random() * Math.PI * 2,
       };
     };
 
@@ -186,30 +179,11 @@ export default function DetailTwo() {
         bot.lastRetarget = nowTs;
         bot.retargetDelay = rr(900, 2100);
       }
-      // 속도 이벤트(랜덤 버스트)
-      if (bot.speedBurstEndAt && nowTs >= bot.speedBurstEndAt) {
-        bot.speedBurstEndAt = 0;
-        bot.speedTarget = bot.speedBase;
-        bot.nextSpeedEventAt = nowTs + rr(1500, 6000);
-      }
-      if (!bot.speedBurstEndAt && nowTs >= bot.nextSpeedEventAt) {
-        const mult = rr(1.5, 2.3);
-        const dur = rr(500, 1400);
-        bot.speedTarget = bot.speedBase * mult;
-        bot.speedBurstEndAt = nowTs + dur;
-      }
-      // 서서히 보간 + 잔진동
-      if (bot.speedCurr === 0) bot.speedCurr = bot.speedBase;
-      if (bot.speedTarget === 0) bot.speedTarget = bot.speedBase;
-      bot.speedCurr += (bot.speedTarget - bot.speedCurr) * 0.06;
-      bot.speedJitterPhase = (bot.speedJitterPhase || 0) + 0.08;
-      const jitter = 1 + 0.08 * Math.sin(bot.speedJitterPhase);
-      const effSpeed = Math.max(0.5, bot.speedCurr * jitter);
       // move head
       const dx = bot.target.x - head.x;
       const dy = bot.target.y - head.y;
       const dist = Math.hypot(dx, dy) || 0.0001;
-      const step = Math.min(effSpeed, dist);
+      const step = Math.min(bot.speed, dist);
       head.x += (dx / dist) * step;
       head.y += (dy / dist) * step;
       // 화면 경계 클램핑 및 재목표 설정
@@ -336,7 +310,18 @@ export default function DetailTwo() {
       const y = e.clientY - rect.top;
       // 개체가 없으면 스폰, 있으면 즉시 전체 분열
       if (bots.length === 0) {
-        bots.push(newBot(x, y));
+        const b = newBot(x, y);
+        // 생성 직후 안전 보정
+        const cw = canvas.clientWidth || 800;
+        const ch = canvas.clientHeight || 600;
+        for (const s of b.segments) {
+          if (!isFinite(s.x) || !isFinite(s.y)) { s.x = cw * 0.5; s.y = ch * 0.5; }
+          s.x = clamp(s.x, 12, cw - 12);
+          s.y = clamp(s.y, 12, ch - 12);
+        }
+        b.target.x = clamp(b.target.x, 48, cw - 48);
+        b.target.y = clamp(b.target.y, 48, ch - 48);
+        bots.push(b);
         try { console.log("[detail/2][bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length); } catch {}
       } else {
         const nowTs = performance.now();
@@ -349,6 +334,18 @@ export default function DetailTwo() {
           }
           const c1 = cloneFromParent(p, -1, nowTs);
           const c2 = cloneFromParent(p, +1, nowTs);
+          // 생성 직후 안전 보정
+          const cw = canvas.clientWidth || 800;
+          const ch = canvas.clientHeight || 600;
+          for (const b of [c1, c2]) {
+            for (const s of b.segments) {
+              if (!isFinite(s.x) || !isFinite(s.y)) { s.x = cw * 0.5; s.y = ch * 0.5; }
+              s.x = clamp(s.x, 12, cw - 12);
+              s.y = clamp(s.y, 12, ch - 12);
+            }
+            b.target.x = clamp(b.target.x, 48, cw - 48);
+            b.target.y = clamp(b.target.y, 48, ch - 48);
+          }
           bots.push(c1, c2);
         }
         nextReproTs = nowTs + 5000;
