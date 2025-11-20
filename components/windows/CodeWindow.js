@@ -371,7 +371,7 @@ const DEFAULT_CODE_LINES = [
 ];
 
 export default function CodeWindow({
-  scale,
+  scale = 1,
   initialPosition = DEFAULT_POSITION,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT,

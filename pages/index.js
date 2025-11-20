@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { introButtons, BugCard } from "@/components/intro-buttons";
 import { useBugs } from "@/context/BugContext";
+import WindowsPage from "@/components/WindowsPage";
+import BackgroundCodeLayer from "@/components/BackgroundCodeLayer";
 
 // 동적 로드로 클라이언트 전용 캔버스 의존성 회피
 const MainCanvas = dynamic(() => import("@/components/main"), { ssr: false });
@@ -11,9 +13,8 @@ export default function Home() {
   const { released, releaseBug, clearReleased } = useBugs();
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [activeMode, setActiveMode] = useState("centipede");
-  const [overlayStage, setOverlayStage] = useState("card"); // 'card' | 'text'
-  const [overlayGrow, setOverlayGrow] = useState(false);
   const [centipedeEscaped, setCentipedeEscaped] = useState(false);
+  const [centipedeVisible, setCentipedeVisible] = useState(false);
 
   const spritePaths = {
     centipede: {
@@ -26,12 +27,7 @@ export default function Home() {
     },
   };
 
-  // 새로고침(초기 진입) 시 카운트/플래그 초기화
-  useEffect(() => {
-    try { localStorage.removeItem("centipedeReleased"); } catch {}
-    try { clearReleased(); } catch {}
-    setCentipedeEscaped(false);
-  }, [clearReleased]);
+  // 초기 진입 시 상태를 유지하도록 변경 (배경 상태를 임의로 리셋하지 않음)
 
   // localStorage에서 탈출 여부 복구(+Context 동기화)
   useEffect(() => {
@@ -55,24 +51,13 @@ export default function Home() {
 
   const openOverlay = (mode) => {
     setActiveMode(mode);
-    setOverlayStage("card");
-    setOverlayGrow(false);
     setOverlayOpen(true);
-    // 살짝 커지는 애니메이션 후 텍스트 노출
-    setTimeout(() => setOverlayGrow(true), 20);
-    setTimeout(() => setOverlayStage("text"), 520);
+    setCentipedeVisible(false); // 창 열리면 지네 숨김
   };
 
   const closeOverlay = () => {
     setOverlayOpen(false);
-    setOverlayGrow(false);
-    setOverlayStage("card");
-    // Centipede 카드의 오버레이를 X로 닫을 때도 즉시 '탈출' 연출 활성화
-    if (activeMode === "centipede") {
-      try { localStorage.setItem("centipedeReleased", "1"); } catch {}
-      try { releaseBug("centipede"); } catch {}
-      setCentipedeEscaped(true);
-    }
+    setCentipedeVisible(true); // 창 닫으면 지네 표시
   };
 
   const selected = useMemo(() => {
@@ -96,8 +81,9 @@ export default function Home() {
         padding: 24,
         position: "relative",
       }}>
-        {/* 배경 자율 지네: 디테일 닫힘 후 탈출 상태에서만 렌더 */}
-        {centipedeEscaped && (
+        <BackgroundCodeLayer lines={140} mode="typeScroll" typeSpeed={70} scrollSpeed={18} />
+        {/* 배경 지네: Window 닫힌 뒤에만 표시 */}
+        {!overlayOpen && centipedeVisible && (
           <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none" }}>
             <MainCanvas initialMode="centipede" hideUI spritePaths={spritePaths} showControls={false} zIndex={1} />
           </div>
@@ -113,18 +99,29 @@ export default function Home() {
           position: "relative",
           zIndex: 2,
         }}>
-          <h1 style={{
-            fontSize: 44,
-            lineHeight: "1.2",
-            letterSpacing: -1.2,
-            fontWeight: 700,
-            color: "#ffffff",
-            textAlign: "center",
-            fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
-            margin: 0,
-          }}>
-            Bugs Encyclopedia
-          </h1>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <div style={{
+              display: "inline-block",
+              padding: "12px 24px",
+              border: "1px solid rgba(255,255,255,0.35)",
+              background: "rgba(0,0,0,0.35)",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+            }}>
+              <h1 style={{
+                fontSize: 48,
+                lineHeight: "1.2",
+                letterSpacing: 1,
+                fontWeight: 900,
+                color: "#ffffff",
+                textAlign: "center",
+                fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
+                margin: 0,
+                textShadow: "0 0 8px rgba(255,255,255,0.35), 0 0 22px rgba(0,255,255,0.25)",
+              }}>
+                X-ray Window
+              </h1>
+            </div>
+          </div>
         </header>
         <div style={{
           width: "100%",
@@ -147,73 +144,32 @@ export default function Home() {
           }}>
             {introButtons.map((c, idx) => {
               const isFirstCentipede = idx === 0 && c.mode === "centipede";
-              if (isFirstCentipede && centipedeEscaped) {
-                // 404 글리치 카드 (지네 탈출)
+              if (isFirstCentipede && centipedeVisible) {
+                // 섹션 프레임은 유지하고, 미리보기 영역 중앙에 404만 표시
                 return (
-                  <div key={idx} style={{
-                    textAlign: "left",
-                    background: "linear-gradient(180deg, #0b0b0b, #0a0a0a)",
-                    border: "1px solid rgba(255,255,255,0.7)",
-                    borderRadius: 0,
-                    padding: 24,
-                    minHeight: 520,
-                    overflow: "hidden",
-                    position: "relative",
-                  }}>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace",
-                      fontSize: 14,
-                      color: "#d1d5db",
-                      paddingBottom: 8,
-                      borderBottom: "1px solid rgba(255,255,255,0.16)",
-                      marginBottom: 12,
-                    }}>
-                      <span style={{ color: "#9ca3af" }}>#1</span>
-                      <span style={{ color: "#93c5fd" }}>Bug</span>
-                      <span style={{ color: "#9ca3af" }}>(</span>
-                      <span style={{ color: "#f59e0b" }}>Centipede</span>
-                      <span style={{ color: "#9ca3af" }}>)</span>
-                      <span style={{ color: "#9ca3af" }}>;</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 0 }}>
-                      섹션에서 지네가 탈출했습니다. Not Found 404
-                    </div>
-                    <div style={{
-                      height: 420,
-                      marginTop: 12,
-                      borderRadius: 0,
-                      background:
-                        "repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, rgba(0,0,0,0) 2px 4px)," +
-                        "repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, rgba(0,0,0,0) 1px 2px)",
-                      border: "1px solid rgba(255,255,255,0.4)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      position: "relative",
-                      overflow: "hidden",
-                    }}>
+                  <BugCard
+                    key={idx}
+                    index={idx + 1}
+                    label={c.label}
+                    desc={c.desc}
+                    mode={c.mode}
+                    onOpen={() => {}}
+                    previewChildren={
                       <div style={{
                         position: "absolute",
                         inset: 0,
-                        mixBlendMode: "screen",
-                        background: "radial-gradient(ellipse at center, rgba(255,0,0,0.08), rgba(0,0,0,0) 60%)",
-                      }} />
-                      <div style={{
-                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                         color: "#ffffff",
                         fontSize: 96,
                         fontWeight: 900,
                         letterSpacing: 6,
-                        textShadow: "2px 0 #ff0080, -2px 0 #00e5ff, 0 0 8px rgba(255,255,255,0.5)",
-                        transform: "skewX(-6deg)",
                       }}>
                         404
                       </div>
-                    </div>
-                  </div>
+                    }
+                  />
                 );
               }
               return (
@@ -262,91 +218,11 @@ export default function Home() {
       </div>
 
       {overlayOpen && (
-        <div className="overlay-backdrop" style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.6)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 50,
-        }}>
-          <div className="overlay-panel" style={{
-            position: "relative",
-            width: "min(100%, 1200px)",
-            height: "auto",
-            background: "transparent", // 투명
-            borderRadius: 0,
-            overflow: "visible",
-            boxShadow: "none",
-            border: "none",
-            display: "flex",
-            gap: 24,
-            alignItems: "flex-start",
-            padding: 12,
-          }}>
-            <button
-              onClick={closeOverlay}
-              aria-label="닫기"
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                zIndex: 10,
-                padding: 4,
-                borderRadius: 0,
-                border: "none",
-                background: "transparent",
-                color: "#e5e7eb",
-                cursor: "pointer",
-                fontSize: 18,
-                lineHeight: "18px",
-              }}
-            >
-              x
-            </button>
-
-            {/* 확대 카드 */}
-            <BugCard
-              index={selected.index}
-              label={selected.data.label}
-              desc={selected.data.desc}
-              mode={selected.data.mode}
-              previewSrc={overlayStage === "card" ? selected.data.previewSrc : undefined}
-              videoSrc={selected.data.videoSrc && overlayStage === "text" ? selected.data.videoSrc : undefined}
-              onOpen={() => {}}
-              style={{
-                transform: overlayGrow ? "scale(1.08)" : "scale(0.96)",
-                transition: "transform 450ms ease",
-                pointerEvents: "none",
-                minWidth: 420,
-              }}
-            />
-
-            {/* 우측 더미 텍스트 */}
-            <div style={{
-              width: 420,
-              color: "#cbd5e1",
-              fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace",
-              fontSize: 12,
-              lineHeight: "18px",
-              opacity: overlayStage === "text" ? 1 : 0,
-              transition: "opacity 350ms ease",
-              whiteSpace: "pre-wrap",
-            }}>
-{`name( ${selected.data.label} );\n\nreturn{\n  steps: [\n    'initialize()',\n    'setupScene()',\n    'drawSegments()',\n    'animate()',\n    'cleanup()',\n  ],\n  note: '이 영역은 더미 텍스트입니다. 실제 설명을 넣어주세요.'\n};\n\n// click 'x' to close`}
-              <div style={{ marginTop: 12 }}>
-                <a href={selected.index === 1 ? "/bug-visual-centipede" : "/bug-visual-centipede"} style={{
-                  padding: "8px 12px",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  color: "#e5e7eb",
-                  textDecoration: "none",
-                  background: "transparent",
-                }}>Detail</a>
-              </div>
-            </div>
-          </div>
-        </div>
+        <WindowsPage
+          open={overlayOpen}
+          onClose={closeOverlay}
+          selected={selected}
+        />
       )}
     </>
   );

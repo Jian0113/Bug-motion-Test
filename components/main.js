@@ -742,7 +742,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       </Head>
       <div style={{
         minHeight: "100vh",
-        background: "#0b1020",
+        background: hideUI ? "transparent" : "#0b1020",
         color: "#cbd5e1",
         display: "flex",
         flexDirection: "column",

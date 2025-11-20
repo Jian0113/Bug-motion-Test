@@ -46,7 +46,7 @@ const DEFAULT_WIKI_PARAGRAPHS = [
 ];
 
 export default function WikiWindow({
-  scale,
+  scale = 1,
   initialPosition = DEFAULT_POSITION,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT,
