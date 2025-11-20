@@ -111,6 +111,24 @@ export default function Home() {
               fontSize: 14,
               border: "1px solid rgba(255,255,255,0.16)",
             }}>전체 데모 보기</a>
+            <a href="/detail/1" style={{
+              padding: "10px 16px",
+              borderRadius: 0,
+              background: "#111827",
+              color: "#fff",
+              fontSize: 14,
+              border: "1px solid rgba(255,255,255,0.16)",
+              textDecoration: "none",
+            }}>1.js</a>
+            <a href="/detail/2" style={{
+              padding: "10px 16px",
+              borderRadius: 0,
+              background: "#111827",
+              color: "#fff",
+              fontSize: 14,
+              border: "1px solid rgba(255,255,255,0.16)",
+              textDecoration: "none",
+            }}>2.js</a>
           </div>
         </div>
       </div>
