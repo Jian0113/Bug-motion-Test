@@ -11,6 +11,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
+  const [showErrorOverlay, setShowErrorOverlay] = useState(false);
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
     spider: { head: null, body: null, leg: null },
@@ -56,6 +57,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     let animationFrameId = 0;
     let running = true;
     let lastRafLog = 0;
+    const overlayShownRef = { current: false };
 
     // cached grid pattern for background fill (multi-level grid)
     let gridPattern = null;
@@ -332,6 +334,13 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         segments: Array.from({ length: 48 }, (_, i) => ({ x: x - i * state.spacing, y })),
         spacing: state.spacing,
         speed: randRange(2.5, 5.0),
+        // 자연스러운 가속/감속을 위한 속도 상태
+        speedBase: randRange(2.5, 5.0),
+        speedCurr: 0,              // 프레임별 보간된 속도
+        speedTarget: 0,            // 목표 속도(버스트 시 상승)
+        nextSpeedEventAt: performance.now() + randRange(1200, 4000),
+        speedBurstEndAt: 0,
+        speedJitterPhase: Math.random() * Math.PI * 2,
         target: { x: clamp(x + randRange(-120, 120), 24, w - 24), y: clamp(y + randRange(-120, 120), 24, h - 24) },
         lastRetarget: performance.now(),
         retargetDelay: randRange(1200, 2600),
@@ -359,6 +368,12 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         segments: parent.segments.map(p => ({ x: p.x, y: p.y })),
         spacing: parent.spacing,
         speed: randRange(2.5, 5.0),
+        speedBase: randRange(2.5, 5.0),
+        speedCurr: 0,
+        speedTarget: 0,
+        nextSpeedEventAt: (timeMs || performance.now()) + randRange(1200, 4000),
+        speedBurstEndAt: 0,
+        speedJitterPhase: Math.random() * Math.PI * 2,
         target: { x: head.x + tx * 160 + nx * side * 60, y: head.y + ty * 160 + ny * side * 60 },
         lastRetarget: timeMs || performance.now(),
         retargetDelay: randRange(900, 2100),
@@ -375,6 +390,10 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       // 초기 위치를 약간 옆으로 치우치게 시작
       child.segments[0].x += nx * side * 6;
       child.segments[0].y += ny * side * 6;
+      // 초기 타겟을 화면 안으로 클램핑
+      const { w, h } = canvasClientSize();
+      child.target.x = clamp(child.target.x, 24, w - 24);
+      child.target.y = clamp(child.target.y, 24, h - 24);
       return child;
     };
     const updateBot = (bot, timeMs) => {
@@ -391,13 +410,49 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         bot.lastRetarget = nowTs;
         bot.retargetDelay = randRange(900, 2200);
       }
+      // 속도 이벤트(랜덤 버스트) 스케줄링
+      if (bot.speedBurstEndAt && nowTs >= bot.speedBurstEndAt) {
+        bot.speedBurstEndAt = 0;
+        bot.speedTarget = bot.speedBase;
+        bot.nextSpeedEventAt = nowTs + randRange(1500, 6000);
+      }
+      if (!bot.speedBurstEndAt && nowTs >= bot.nextSpeedEventAt) {
+        const mult = randRange(1.5, 2.3);           // 가속 배수
+        const dur = randRange(500, 1400);           // 가속 지속 시간
+        bot.speedTarget = bot.speedBase * mult;
+        bot.speedBurstEndAt = nowTs + dur;
+      }
+      // 서서히 보간(자연스러운 가속/감속)
+      if (bot.speedCurr === 0) bot.speedCurr = bot.speedBase;
+      if (bot.speedTarget === 0) bot.speedTarget = bot.speedBase;
+      bot.speedCurr += (bot.speedTarget - bot.speedCurr) * 0.06;
+      // 잔진동(jitter)로 자연스러움 추가
+      bot.speedJitterPhase = (bot.speedJitterPhase || 0) + 0.08;
+      const jitter = 1 + 0.08 * Math.sin(bot.speedJitterPhase);
+      const effSpeed = Math.max(0.5, bot.speedCurr * jitter);
       // 목표로 이동
       const dx = bot.target.x - head.x;
       const dy = bot.target.y - head.y;
       const dist = Math.hypot(dx, dy) || 0.0001;
-      const step = Math.min(bot.speed, dist);
+      const step = Math.min(effSpeed, dist);
       head.x += (dx / dist) * step;
       head.y += (dy / dist) * step;
+      // 화면 경계 클램핑 및 튕김형 재목표 설정
+      const __wh = canvasClientSize();
+      const w2 = __wh.w, h2 = __wh.h;
+      let clamped = false;
+      if (head.x < 12) { head.x = 12; clamped = true; }
+      if (head.y < 12) { head.y = 12; clamped = true; }
+      if (head.x > w2 - 12) { head.x = w2 - 12; clamped = true; }
+      if (head.y > h2 - 12) { head.y = h2 - 12; clamped = true; }
+      if (clamped) {
+        bot.target = {
+          x: clamp(head.x + randRange(-180, 180), 24, w2 - 24),
+          y: clamp(head.y + randRange(-180, 180), 24, h2 - 24),
+        };
+        bot.lastRetarget = nowTs;
+        bot.retargetDelay = randRange(900, 2000);
+      }
       // 스폰 분열 애니메이션: 머리 양옆으로 벌어짐
       if (bot.spawnEndTs && nowTs < bot.spawnEndTs && bot.spawnDir) {
         const neck = bot.segments[1] || head;
@@ -441,10 +496,26 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      bots.push(newBot(x, y));
-      try {
-        console.log("[bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length);
-      } catch {}
+      // 개체가 없으면 스폰, 있으면 즉시 전체 분열
+      if (bots.length === 0) {
+        bots.push(newBot(x, y));
+        try { console.log("[bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length); } catch {}
+      } else {
+        const nowTs = performance.now();
+        const before = bots.length;
+        const parents = bots.splice(0, bots.length);
+        for (let p of parents) {
+          if (bots.length >= MAX_BOTS - 1) {
+            bots.push(p);
+            continue;
+          }
+          const c1 = cloneFromParent(p, -1, nowTs);
+          const c2 = cloneFromParent(p, +1, nowTs);
+          bots.push(c1, c2);
+        }
+        nextReproTs = nowTs + 5000; // 다음 자동 분열 예약
+        try { console.log("[repro] manual split fired:", before, "->", bots.length, "next at(ms):", Math.round(nextReproTs)); } catch {}
+      }
     };
 
     const drawGecko = (timeMs) => {
@@ -456,9 +527,10 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       clear();
       lengthenOrShorten();
       followChain(timeMs);
-      // 5초마다 전체 개체 분열 (N -> 2N)
+    // 5초마다 전체 개체 분열 (N -> 2N)
+    const AUTO_REPRO_ENABLED = false; // 자동 분열 비활성화 플래그
       const nowTs = timeMs || performance.now();
-      if (bots.length > 0 && nowTs >= nextReproTs) {
+      if (AUTO_REPRO_ENABLED && bots.length > 0 && nowTs >= nextReproTs) {
         const before = bots.length;
         const parents = bots.splice(0, bots.length);
         for (let p of parents) {
@@ -478,13 +550,21 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         updateBot(bots[i], timeMs);
         drawBot(bots[i], timeMs);
       }
+      // 임계치(>=16) 도달 시 노이즈/ERROR 오버레이 표시 (1회 트리거)
+      if (!overlayShownRef.current && bots.length >= 16) {
+        overlayShownRef.current = true;
+        try { console.log("[overlay] ERROR overlay shown (bots:", bots.length, ")"); } catch {}
+        setShowErrorOverlay(true);
+      }
       if ((timeMs || 0) - lastBotsLog > 1000) {
         lastBotsLog = timeMs || 0;
         const nowMs = timeMs || performance.now();
         const remain = Math.max(0, Math.round(nextReproTs - nowMs));
-        const reason = bots.length === 0
-          ? "skip(no bots)"
-          : (bots.length >= MAX_BOTS ? "skip(max cap)" : (remain > 0 ? "waiting" : "ready"));
+        const reason = !AUTO_REPRO_ENABLED
+          ? "disabled"
+          : (bots.length === 0
+            ? "skip(no bots)"
+            : (bots.length >= MAX_BOTS ? "skip(max cap)" : (remain > 0 ? "waiting" : "ready")));
         try {
           console.log("[bots] render count:", bots.length, "| [repro]", reason, "remain(ms):", remain, "target(ms):", Math.round(nextReproTs));
         } catch {}
@@ -733,6 +813,39 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
               pointerEvents: "none",
             }}
           />
+          {showErrorOverlay && (
+            <div style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 3,
+              pointerEvents: "none",
+            }}>
+              <div style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, rgba(0,0,0,0) 2px 4px)," +
+                  "repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, rgba(0,0,0,0) 1px 2px)," +
+                  "radial-gradient(ellipse at center, rgba(255,0,0,0.08), rgba(0,0,0,0.0) 60%)",
+                mixBlendMode: "screen",
+              }} />
+              <div style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                color: "#ff4d4d",
+                fontSize: 120,
+                letterSpacing: 6,
+                fontWeight: 800,
+                textShadow: "0 0 12px rgba(255,0,0,0.6), 0 0 28px rgba(255,255,255,0.2)",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+                opacity: 0.95,
+              }}>
+                ERROR
+              </div>
+            </div>
+          )}
         {showControls && mode === "centipede" && (
           <div style={{ position: "absolute", top: 12, right: 12, zIndex: 3 }}>
             <CentipedeControls

@@ -41,15 +41,50 @@ export default function DetailTwo() {
     let raf = 0;
     let running = true;
     let lastLog = 0;
+    let lastBotsLog = 0;
 
-    const state = {
+    // ---- 스프라이트 로더 ----
+    const spritesRef = { centipede: { head: null, body: null, leg: null, legLeft: null, legRight: null, legLeft2: null, legRight2: null } };
+    const getSprite = (kind, part) => {
+      const k = spritesRef[kind] || {};
+      return k[part] || null;
+    };
+    const loadOne = (src) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+    const loadSprites = async () => {
+      // bug-visual-centipede와 동일한 자원 경로 사용
+      const [head, body, legLeft, legRight, legLeft2, legRight2] = await Promise.all([
+        loadOne("/1_parts_head.png"),
+        loadOne("/1_parts_body.png"),
+        loadOne("/1_parts_Left.png"),
+        loadOne("/1_parts_Right.png"),
+        loadOne("/1_parts_Left_2.png"),
+        loadOne("/1_parts_Right_2.png"),
+      ]);
+      spritesRef.centipede.head = head;
+      spritesRef.centipede.body = body;
+      // generic leg로도 접근 가능하도록 기본 leg를 하나 지정
+      spritesRef.centipede.leg = legLeft || legRight || null;
+      spritesRef.centipede.legLeft = legLeft;
+      spritesRef.centipede.legRight = legRight;
+      spritesRef.centipede.legLeft2 = legLeft2;
+      spritesRef.centipede.legRight2 = legRight2;
+      try { console.log("[detail/2] sprites loaded:", !!head, !!body, !!legLeft, !!legRight, !!legLeft2, !!legRight2); } catch {}
+    };
+
+    // 렌더 구성(여러 개체에 공통 적용)
+    const conf = {
       width: 0,
       height: 0,
       dpr: 1,
-      segments: [],
       spacing: 10,
       speed: 4,
-      rotationOffsets: {},
+      rotationOffsets: { head: 90, body: -90, legLeft: -180, legRight: 0 },
       legSpread: 1.0,
       legPairGap: 0,
       legAnchor: "knee",
@@ -61,14 +96,44 @@ export default function DetailTwo() {
 
     const setCanvasSize = () => {
       const rect = canvas.getBoundingClientRect();
-      state.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      state.width = Math.floor(rect.width * state.dpr);
-      state.height = Math.floor(rect.height * state.dpr);
-      canvas.width = state.width;
-      canvas.height = state.height;
+      conf.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      conf.width = Math.floor(rect.width * conf.dpr);
+      conf.height = Math.floor(rect.height * conf.dpr);
+      canvas.width = conf.width;
+      canvas.height = conf.height;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(state.dpr, state.dpr);
-      try { console.log("[detail/2] canvas size:", rect.width, rect.height, "dpr:", state.dpr); } catch {}
+      ctx.scale(conf.dpr, conf.dpr);
+      try { console.log("[detail/2] canvas size:", rect.width, rect.height, "dpr:", conf.dpr); } catch {}
+    };
+
+    const bots = [];
+    const MAX_BOTS = 48;
+    let nextReproTs = performance.now() + 5000;
+    try { console.log("[detail/2][repro] schedule next at(ms):", Math.round(nextReproTs)); } catch {}
+
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const rr = (a, b) => a + Math.random() * (b - a);
+
+    const newBot = (x, y) => {
+      const segs = Array.from({ length: 60 }, (_, i) => ({ x: x - i * conf.spacing, y }));
+      const cw = canvas.clientWidth || 800;
+      const ch = canvas.clientHeight || 600;
+      return {
+        segments: segs,
+        target: { x: clamp(x + 120, 24, cw - 24), y: clamp(y + 40, 24, ch - 24) },
+        lastRetarget: performance.now(),
+        retargetDelay: 1400,
+        spawnEndTs: 0,
+        spawnDir: 0,
+        speed: conf.speed,
+        // 자연스러운 가속/감속 상태
+        speedBase: conf.speed,
+        speedCurr: 0,
+        speedTarget: 0,
+        nextSpeedEventAt: performance.now() + rr(1200, 4000),
+        speedBurstEndAt: 0,
+        speedJitterPhase: Math.random() * Math.PI * 2,
+      };
     };
 
     const initBot = () => {
@@ -76,24 +141,39 @@ export default function DetailTwo() {
       const ch = canvas.clientHeight || 600;
       const cx = cw * 0.5;
       const cy = ch * 0.5;
-      state.segments = Array.from({ length: 60 }, (_, i) => ({ x: cx - i * state.spacing, y: cy }));
-      bot.target = { x: cx + 120, y: cy + 40 };
-      bot.lastRetarget = performance.now();
-      bot.retargetDelay = 1600;
-      try { console.log("[detail/2] bot init at", { x: Math.round(cx), y: Math.round(cy) }, "segments:", state.segments.length); } catch {}
+      bots.push(newBot(cx, cy));
+      try { console.log("[detail/2] bot init at", { x: Math.round(cx), y: Math.round(cy) }, "segments:", 60); } catch {}
     };
 
-    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-    const rr = (a, b) => a + Math.random() * (b - a);
-
-    const bot = {
-      target: { x: 0, y: 0 },
-      lastRetarget: 0,
-      retargetDelay: 1400,
+    const cloneFromParent = (parent, side, timeMs) => {
+      const head = parent.segments[0];
+      const neck = parent.segments[1] || head;
+      const dx = head.x - neck.x, dy = head.y - neck.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const tx = dx / d, ty = dy / d;
+      const nx = -ty, ny = tx;
+      const child = {
+        segments: parent.segments.map(p => ({ x: p.x, y: p.y })),
+        target: { x: head.x + tx * 160 + nx * side * 60, y: head.y + ty * 160 + ny * side * 60 },
+        lastRetarget: timeMs || performance.now(),
+        retargetDelay: rr(900, 2100),
+        spawnEndTs: (timeMs || performance.now()) + 450,
+        spawnDir: side,
+        speed: rr(2.5, 5.0),
+      };
+      // 살짝 옆으로 시작
+      child.segments[0].x += nx * side * 6;
+      child.segments[0].y += ny * side * 6;
+      // 초기 타겟을 화면 안으로 클램핑
+      const cw = canvas.clientWidth || 800;
+      const ch = canvas.clientHeight || 600;
+      child.target.x = clamp(child.target.x, 24, cw - 24);
+      child.target.y = clamp(child.target.y, 24, ch - 24);
+      return child;
     };
 
-    const updateBot = (timeMs) => {
-      const head = state.segments[0];
+    const updateBot = (bot, timeMs) => {
+      const head = bot.segments[0];
       const nowTs = timeMs || performance.now();
       const cw = canvas.clientWidth || 800;
       const ch = canvas.clientHeight || 600;
@@ -106,21 +186,67 @@ export default function DetailTwo() {
         bot.lastRetarget = nowTs;
         bot.retargetDelay = rr(900, 2100);
       }
+      // 속도 이벤트(랜덤 버스트)
+      if (bot.speedBurstEndAt && nowTs >= bot.speedBurstEndAt) {
+        bot.speedBurstEndAt = 0;
+        bot.speedTarget = bot.speedBase;
+        bot.nextSpeedEventAt = nowTs + rr(1500, 6000);
+      }
+      if (!bot.speedBurstEndAt && nowTs >= bot.nextSpeedEventAt) {
+        const mult = rr(1.5, 2.3);
+        const dur = rr(500, 1400);
+        bot.speedTarget = bot.speedBase * mult;
+        bot.speedBurstEndAt = nowTs + dur;
+      }
+      // 서서히 보간 + 잔진동
+      if (bot.speedCurr === 0) bot.speedCurr = bot.speedBase;
+      if (bot.speedTarget === 0) bot.speedTarget = bot.speedBase;
+      bot.speedCurr += (bot.speedTarget - bot.speedCurr) * 0.06;
+      bot.speedJitterPhase = (bot.speedJitterPhase || 0) + 0.08;
+      const jitter = 1 + 0.08 * Math.sin(bot.speedJitterPhase);
+      const effSpeed = Math.max(0.5, bot.speedCurr * jitter);
       // move head
       const dx = bot.target.x - head.x;
       const dy = bot.target.y - head.y;
       const dist = Math.hypot(dx, dy) || 0.0001;
-      const step = Math.min(state.speed, dist);
+      const step = Math.min(effSpeed, dist);
       head.x += (dx / dist) * step;
       head.y += (dy / dist) * step;
+      // 화면 경계 클램핑 및 재목표 설정
+      const cw2 = canvas.clientWidth || 800;
+      const ch2 = canvas.clientHeight || 600;
+      let clamped = false;
+      if (head.x < 12) { head.x = 12; clamped = true; }
+      if (head.y < 12) { head.y = 12; clamped = true; }
+      if (head.x > cw2 - 12) { head.x = cw2 - 12; clamped = true; }
+      if (head.y > ch2 - 12) { head.y = ch2 - 12; clamped = true; }
+      if (clamped) {
+        bot.target = {
+          x: clamp(head.x + rr(-180, 180), 24, cw2 - 24),
+          y: clamp(head.y + rr(-180, 180), 24, ch2 - 24),
+        };
+        bot.lastRetarget = nowTs;
+        bot.retargetDelay = rr(900, 2000);
+      }
+      // split 애니메이션: 머리 양옆으로 벌어짐
+      if (bot.spawnEndTs && nowTs < bot.spawnEndTs && bot.spawnDir) {
+        const neck = bot.segments[1] || head;
+        const hx = head.x - neck.x, hy = head.y - neck.y;
+        const hd = Math.hypot(hx, hy) || 1;
+        const nx = -hy / hd, ny = (hx / hd);
+        const t = 1 - Math.max(0, bot.spawnEndTs - nowTs) / 450;
+        const push = 18 * t;
+        head.x += nx * bot.spawnDir * push;
+        head.y += ny * bot.spawnDir * push;
+      }
       // follow chain
-      for (let i = 1; i < state.segments.length; i++) {
-        const prev = state.segments[i - 1];
-        const seg = state.segments[i];
+      for (let i = 1; i < bot.segments.length; i++) {
+        const prev = bot.segments[i - 1];
+        const seg = bot.segments[i];
         const vx = seg.x - prev.x;
         const vy = seg.y - prev.y;
         const d = Math.hypot(vx, vy) || 0.0001;
-        const desired = i === 1 ? state.spacing * 3 : state.spacing;
+        const desired = i === 1 ? conf.spacing * 3 : conf.spacing;
         seg.x = prev.x + (vx / d) * desired;
         seg.y = prev.y + (vy / d) * desired;
       }
@@ -130,27 +256,112 @@ export default function DetailTwo() {
       ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     };
 
+    const drawBot = (bot, timeMs) => {
+      drawCentipedeLib(
+        ctx,
+        {
+          segments: bot.segments,
+          rotationOffsets: conf.rotationOffsets,
+          legSpread: conf.legSpread,
+          legPairGap: conf.legPairGap,
+          legAnchor: conf.legAnchor,
+          legAnchorShift: conf.legAnchorShift,
+          legAnchorLeftPct: conf.legAnchorLeftPct,
+          legAnchorRightPct: conf.legAnchorRightPct,
+          scales: conf.scales,
+        },
+        timeMs,
+        true,
+        getSprite
+      );
+    };
+
     const render = (timeMs) => {
       if (!running) return;
       clear();
-      updateBot(timeMs);
-      drawCentipedeLib(ctx, state, timeMs, false, null);
+      // 업데이트/렌더
+      for (let i = 0; i < bots.length; i++) {
+        updateBot(bots[i], timeMs);
+        drawBot(bots[i], timeMs);
+      }
+      // 번식 트리거
+      const AUTO_REPRO_ENABLED = false; // 자동 분열 비활성화 플래그
+      const nowTs = timeMs || performance.now();
+      if (AUTO_REPRO_ENABLED && bots.length > 0 && nowTs >= nextReproTs) {
+        const before = bots.length;
+        const parents = bots.splice(0, bots.length);
+        for (let p of parents) {
+          if (bots.length >= MAX_BOTS - 1) { // 여유 1
+            bots.push(p);
+            continue;
+          }
+          const c1 = cloneFromParent(p, -1, nowTs);
+          const c2 = cloneFromParent(p, +1, nowTs);
+          bots.push(c1, c2);
+        }
+        nextReproTs = nowTs + 5000;
+        try { console.log("[detail/2][repro] split fired:", before, "->", bots.length, "next at(ms):", Math.round(nextReproTs)); } catch {}
+      }
+      // 1초 주기 상태 로그
+      if ((timeMs || 0) - lastBotsLog > 1000) {
+        lastBotsLog = timeMs || 0;
+        const nowMs = timeMs || performance.now();
+        const remain = Math.max(0, Math.round(nextReproTs - nowMs));
+        const reason = !AUTO_REPRO_ENABLED
+          ? "disabled"
+          : (bots.length === 0
+            ? "skip(no bots)"
+            : (bots.length >= MAX_BOTS ? "skip(max cap)" : (remain > 0 ? "waiting" : "ready")));
+        try { console.log("[detail/2] bots:", bots.length, "| [repro]", reason, "remain(ms):", remain, "target(ms):", Math.round(nextReproTs)); } catch {}
+      }
+      // 기존 간단 렌더 틱 로그
       if ((timeMs || 0) - lastLog > 1000) {
         lastLog = timeMs || 0;
-        try { console.log("[detail/2] render tick, segs:", state.segments.length, "target:", bot.target); } catch {}
+        if (bots[0]) {
+          try { console.log("[detail/2] render tick, segs:", bots[0].segments.length, "target:", bots[0].target); } catch {}
+        }
       }
       raf = requestAnimationFrame(render);
     };
 
     setCanvasSize();
+    // 스프라이트 로드 시작
+    loadSprites();
     initBot();
     raf = requestAnimationFrame(render);
     const onResize = () => setCanvasSize();
+    const onPointerDown = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      // 개체가 없으면 스폰, 있으면 즉시 전체 분열
+      if (bots.length === 0) {
+        bots.push(newBot(x, y));
+        try { console.log("[detail/2][bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length); } catch {}
+      } else {
+        const nowTs = performance.now();
+        const before = bots.length;
+        const parents = bots.splice(0, bots.length);
+        for (let p of parents) {
+          if (bots.length >= MAX_BOTS - 1) {
+            bots.push(p);
+            continue;
+          }
+          const c1 = cloneFromParent(p, -1, nowTs);
+          const c2 = cloneFromParent(p, +1, nowTs);
+          bots.push(c1, c2);
+        }
+        nextReproTs = nowTs + 5000;
+        try { console.log("[detail/2][repro] manual split fired:", before, "->", bots.length, "next at(ms):", Math.round(nextReproTs)); } catch {}
+      }
+    };
     window.addEventListener("resize", onResize);
+    window.addEventListener("pointerdown", onPointerDown, { passive: true, capture: true });
     return () => {
       running = false;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("pointerdown", onPointerDown, { capture: true });
     };
   }, [scale]);
 
