@@ -60,7 +60,7 @@ export default function BackgroundCodeLayer({
         carry -= add;
         const next = source.slice(cursor, cursor + add);
         cursor = (cursor + add) % source.length;
-        setTyped((s) => (s + next).slice(-12000)); // 제한
+        setTyped((s) => (s + next).slice(-5000)); // 제한 줄여 DOM 가벼움
       }
       // scroll up
       scrollPxRef.current = (scrollPxRef.current + (scrollSpeed * dt) / 1000) % (lineHeight * 10000);
@@ -76,23 +76,31 @@ export default function BackgroundCodeLayer({
   // 히트박스: 배경 코드 문자 변조
   useEffect(() => {
     if (mode !== "typeScroll") return;
+    let lastTs = 0;
     const handler = (e) => {
       const { x, y } = (e && e.detail) || {};
+      const now = performance.now();
+      if (now - lastTs < 70) return; // 70ms 간격으로 스로틀
+      lastTs = now;
       const root = rootRef.current;
       if (!root || typeof x !== "number" || typeof y !== "number") return;
       const rect = root.getBoundingClientRect();
       if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
       const spans = root.querySelectorAll('span[data-bg="1"]');
       if (!spans || spans.length === 0) return;
+      // 최신 영역의 일부만 검사하여 비용 절감
+      const len = spans.length;
+      const windowSize = 600; // 마지막 600개만 검사
       let nearest = null;
       let best = Infinity;
-      spans.forEach((el) => {
+      for (let i = Math.max(0, len - windowSize); i < len; i++) {
+        const el = spans[i];
         const r = el.getBoundingClientRect();
         const cx = (r.left + r.right) / 2;
         const cy = (r.top + r.bottom) / 2;
         const d = Math.hypot(cx - x, cy - y);
         if (d < best) { best = d; nearest = el; }
-      });
+      }
       const HIT = 32;
       if (!nearest || best > HIT) return;
       const colors = ["#ff00ff", "#00ff00"];
@@ -126,7 +134,7 @@ export default function BackgroundCodeLayer({
       overflow: "hidden",
       pointerEvents: "none",
       zIndex: 0,
-      opacity: 0.6,
+      opacity: 0.85,
     }}>
       {mode === "static" ? (
         <div style={{

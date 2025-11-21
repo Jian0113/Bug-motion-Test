@@ -78,7 +78,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Bugs Encyclopedia</title>
+        <title>Cyberbug Taxidermy Museum</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div style={{
@@ -136,7 +136,7 @@ export default function Home() {
                 margin: 0,
                 textShadow: "0 0 8px rgba(255,255,255,0.35), 0 0 22px rgba(0,255,255,0.25)",
               }}>
-                X-ray Window
+                Cyberbug Taxidermy Museum
               </h1>
             </div>
           </div>
