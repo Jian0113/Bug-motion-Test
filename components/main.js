@@ -17,6 +17,9 @@ export default function Main({
   renderMouseFollower = true,
   spawnSingleBot = false,
   autoReproOnce = false,
+  maxDpr = 2,
+  disableBots = false,
+  segmentCount = 60,
 } = {}) {
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
@@ -135,7 +138,7 @@ export default function Main({
       mouseVY: 0,
       lastMouseTs: 0,
       segments: [],
-      segmentCount: 60,
+      segmentCount,
       spacing: 10,
       speed: 6 * SPEED_MUL,
       background: "#000000",
@@ -162,7 +165,7 @@ export default function Main({
 
     const setCanvasSize = () => {
       const rect = canvas.getBoundingClientRect();
-      state.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      state.dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1));
       state.width = Math.floor(rect.width * state.dpr);
       state.height = Math.floor(rect.height * state.dpr);
       canvas.width = state.width;
@@ -590,14 +593,15 @@ export default function Main({
         try { console.log("[repro] split fired:", before, "->", bots.length, "next at(ms):", Math.round(nextReproTs)); } catch {}
       }
       // 자동 에이전트 업데이트/렌더
-      for (let i = 0; i < bots.length; i++) {
-        const bot = bots[i];
-        updateBot(bot, timeMs);
-        drawBot(bot, timeMs);
-        // broadcast bot head for hit detection (same event type)
-        if (bot.segments && bot.segments[0]) {
-          const head = bot.segments[0];
-          window.dispatchEvent(new CustomEvent("centipedeHead", { detail: { x: head.x, y: head.y, t: performance.now(), bot: true } }));
+      if (!disableBots) {
+        for (let i = 0; i < bots.length; i++) {
+          const bot = bots[i];
+          updateBot(bot, timeMs);
+          drawBot(bot, timeMs);
+          if (bot.segments && bot.segments[0]) {
+            const head = bot.segments[0];
+            window.dispatchEvent(new CustomEvent("centipedeHead", { detail: { x: head.x, y: head.y, t: performance.now(), bot: true } }));
+          }
         }
       }
       // cap 초과 시 ERROR 오버레이 표시 (1회 트리거)
@@ -681,10 +685,12 @@ export default function Main({
     window.addEventListener("resize", onResize);
     window.addEventListener("mousemove", onMouseMove);
     // 캡처 단계에서 포인터 다운을 받아 드래그 헤더 등에서의 stopPropagation 영향을 회피
-    window.addEventListener("pointerdown", onClickSpawn, { passive: true, capture: true });
+    if (!disableBots) {
+      window.addEventListener("pointerdown", onClickSpawn, { passive: true, capture: true });
+    }
     try { console.log("[main] listeners attached (resize, mousemove, pointerdown-capture)"); } catch {}
     // 옵션: 초기 자율 지네 하나 생성
-    if (spawnSingleBot) {
+    if (spawnSingleBot && !disableBots) {
       const rect = canvas.getBoundingClientRect();
       const cx = (rect.width || window.innerWidth) * 0.5;
       const cy = (rect.height || window.innerHeight) * 0.5;
@@ -693,7 +699,7 @@ export default function Main({
     }
     // 옵션: 1회 자동 분열(60초 후)
     let oneShotTimer = null;
-    if (autoReproOnce) {
+    if (autoReproOnce && !disableBots) {
       oneShotTimer = setTimeout(() => {
         const nowTs = performance.now();
         const before = bots.length;
@@ -728,7 +734,9 @@ export default function Main({
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("pointerdown", onClickSpawn, { capture: true });
+      if (!disableBots) {
+        window.removeEventListener("pointerdown", onClickSpawn, { capture: true });
+      }
       if (oneShotTimer) clearTimeout(oneShotTimer);
     };
   }, [mode, renderMouseFollower, spawnSingleBot, autoReproOnce]);

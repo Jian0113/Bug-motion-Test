@@ -66,7 +66,7 @@ export default function XRayWindow({
 
     // static chain setup (idle wiggle)
     const spacing = 9;
-    const count = 50;
+    const count = 40;
     const margin = 60; // left margin to avoid clipping
     const centerX = width * 0.5;
     const centerY = height * 0.5;
@@ -87,7 +87,14 @@ export default function XRayWindow({
       if (part === "leg") return s.leg;
       return null;
     };
+    let last = 0;
+    const frame = 1000 / 30; // 30 FPS 제한
     const render = (t) => {
+      if (t - last < frame) {
+        raf = requestAnimationFrame(render);
+        return;
+      }
+      last = t;
       ctx.clearRect(0, 0, width, height);
       // idle wiggle
       for (let i = 0; i < segments.length; i++) {

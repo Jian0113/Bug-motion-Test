@@ -55,7 +55,16 @@ export default function WindowsPage({ open, onClose, selected }) {
     }}>
       {/* overlay 전용 마우스-팔로우 지네 (배경 투명) */}
       <div style={{ position: "fixed", inset: 0, zIndex: 49, pointerEvents: "none" }}>
-        <MainCanvas initialMode="centipede" hideUI showControls={false} zIndex={49} spritePaths={spritePaths} />
+        <MainCanvas
+          initialMode="centipede"
+          hideUI
+          showControls={false}
+          zIndex={49}
+          spritePaths={spritePaths}
+          maxDpr={1}
+          disableBots
+          segmentCount={40}
+        />
       </div>
       <div
         className="overlay-panel"

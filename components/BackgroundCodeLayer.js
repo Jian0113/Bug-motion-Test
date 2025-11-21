@@ -117,7 +117,7 @@ export default function BackgroundCodeLayer({
       if (existing) clearTimeout(Number(existing));
       const tid = setTimeout(() => {
         nearest.textContent = orig;
-        nearest.style.color = "rgba(148,163,184,0.35)";
+        nearest.style.color = "rgba(34,197,94,0.7)";
         nearest.style.textShadow = "none";
         nearest.removeAttribute("data-timer");
       }, 3000);
@@ -143,7 +143,7 @@ export default function BackgroundCodeLayer({
           fontFamily: "JetBrains Mono, ui-monospace, monospace",
           fontSize: 12,
           lineHeight: "16px",
-          color: "rgba(148,163,184,0.35)",
+        color: "rgba(34,197,94,0.7)",
           whiteSpace: "pre",
           padding: "24px 28px",
           userSelect: "none",
@@ -161,7 +161,7 @@ export default function BackgroundCodeLayer({
           fontFamily: "JetBrains Mono, ui-monospace, monospace",
           fontSize: 12,
           lineHeight: "16px",
-          color: "rgba(148,163,184,0.35)",
+        color: "rgba(34,197,94,0.7)",
           whiteSpace: "pre-wrap",
           padding: "24px 28px",
           userSelect: "none",
