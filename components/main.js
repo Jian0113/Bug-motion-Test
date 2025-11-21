@@ -58,6 +58,8 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     let running = true;
     let lastRafLog = 0;
     const overlayShownRef = { current: false };
+    const SHOW_ERROR = false; // keep logic but do not show overlay for now
+    const SPEED_MUL = 1.5; // global speed multiplier
 
     // cached grid pattern for background fill (multi-level grid)
     let gridPattern = null;
@@ -125,7 +127,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       segments: [],
       segmentCount: 60,
       spacing: 10,
-      speed: 6,
+      speed: 6 * SPEED_MUL,
       background: "#000000",
       gecko: null,
       // head wave (perpendicular to mouse velocity) - centipede head sway
@@ -333,7 +335,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       const bot = {
         segments: Array.from({ length: 48 }, (_, i) => ({ x: x - i * state.spacing, y })),
         spacing: state.spacing,
-        speed: randRange(2.5, 5.0),
+        speed: randRange(2.5, 5.0) * SPEED_MUL,
         target: { x: clamp(x + randRange(-120, 120), 48, w - 48), y: clamp(y + randRange(-120, 120), 48, h - 48) },
         lastRetarget: performance.now(),
         retargetDelay: randRange(1200, 2600),
@@ -498,14 +500,22 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       const y = e.clientY - rect.top;
       // Cap check
       if (bots.length >= MAX_BOTS) {
-        setShowErrorOverlay(true);
+        if (SHOW_ERROR) setShowErrorOverlay(true);
         try { console.warn("[bots] cap reached:", MAX_BOTS); } catch {}
         return;
       }
-      // 개체가 없으면 스폰, 있으면 분열(상한선 내)
+      // 개체가 없으면: 마우스 근처에서 '갈라지며' 2마리 스폰
       if (bots.length === 0) {
-        bots.push(newBot(x, y));
-        try { console.log("[bots] spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length); } catch {}
+        const parent = newBot(x, y);
+        const nowTs = performance.now();
+        const c1 = cloneFromParent(parent, -1, nowTs);
+        const c2 = cloneFromParent(parent, +1, nowTs);
+        ensureBotInBounds(c1);
+        ensureBotInBounds(c2);
+        bots.push(c1);
+        if (bots.length < MAX_BOTS) bots.push(c2);
+        nextReproTs = nowTs + 5000;
+        try { console.log("[bots] initial split spawn at", { x: Math.round(x), y: Math.round(y) }, "total:", bots.length); } catch {}
         return;
       }
       const nowTs = performance.now();
@@ -554,14 +564,20 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       }
       // 자동 에이전트 업데이트/렌더
       for (let i = 0; i < bots.length; i++) {
-        updateBot(bots[i], timeMs);
-        drawBot(bots[i], timeMs);
+        const bot = bots[i];
+        updateBot(bot, timeMs);
+        drawBot(bot, timeMs);
+        // broadcast bot head for hit detection (same event type)
+        if (bot.segments && bot.segments[0]) {
+          const head = bot.segments[0];
+          window.dispatchEvent(new CustomEvent("centipedeHead", { detail: { x: head.x, y: head.y, t: performance.now(), bot: true } }));
+        }
       }
       // cap 초과 시 ERROR 오버레이 표시 (1회 트리거)
       if (!overlayShownRef.current && bots.length > MAX_BOTS) {
         overlayShownRef.current = true;
         try { console.log("[overlay] ERROR overlay shown (bots:", bots.length, ")"); } catch {}
-        setShowErrorOverlay(true);
+        if (SHOW_ERROR) setShowErrorOverlay(true);
       }
       if ((timeMs || 0) - lastBotsLog > 1000) {
         lastBotsLog = timeMs || 0;

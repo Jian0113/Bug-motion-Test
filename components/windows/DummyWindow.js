@@ -11,6 +11,7 @@ export default function DummyWindow({
   height = 180,
   children,
   background = "#000000",
+  contentOverflow = "auto",
 }) {
   const { position, startDrag } = useDraggablePosition(1, initialPosition);
   const [z, setZ] = useState(++__zCounter);
@@ -52,7 +53,7 @@ export default function DummyWindow({
         <div style={{ fontWeight: 700 }}>{title}</div>
         <div style={{ color: "#ffffff", opacity: 0.9 }}>{String(number).padStart(2, "0")}</div>
       </div>
-      <div style={{ padding: 12, fontSize: 12, lineHeight: "18px", flex: "1 1 auto", overflow: "auto" }}>
+      <div style={{ padding: 12, fontSize: 12, lineHeight: "18px", flex: "1 1 auto", overflow: contentOverflow }}>
         {children || "이 영역은 더미 윈도우입니다. 원하는 내용을 주입하세요."}
       </div>
     </div>

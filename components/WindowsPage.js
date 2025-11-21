@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { BugCard } from "@/components/intro-buttons";
 import DummyWindow from "@/components/windows/DummyWindow";
 import CmdWindow from "@/components/windows/CmdWindow";
+import ConsoleWindow from "@/components/windows/ConsoleWindow";
+import XRayWindow from "@/components/windows/XRayWindow";
 import dynamic from "next/dynamic";
 
 export default function WindowsPage({ open, onClose, selected }) {
@@ -142,30 +144,32 @@ export default function WindowsPage({ open, onClose, selected }) {
           number={1}
           initialPosition={{ x: -60, y: -180 }}
           width={1040}
-          height={520}
+          height={640}
+          contentOverflow="hidden"
         >
-          <CmdWindow fontScale={4} />
+          <CmdWindow fontScale={3.6} />
         </DummyWindow>
 
         <DummyWindow
           title="X-ray Window"
           number={2}
           initialPosition={{ x: 0, y: 400 }}
-          width={280}
-          height={260}
+          width={560}
+          height={520}
+          contentOverflow="hidden"
         >
-{`>> Safe!
->> Safe!`}
+          <XRayWindow width={520} height={480} />
         </DummyWindow>
 
         <DummyWindow
-          title="Window A"
+          title="Console"
           number={3}
           initialPosition={{ x: 120, y: 320 }}
           width={560}
           height={220}
+          contentOverflow="hidden"
         >
-{`이 영역은 더미입니다. 쉽게 옮길 수 있어요.`}
+          <ConsoleWindow />
         </DummyWindow>
 
         {/* 우측 하단 추가 Command Prompt */}
@@ -174,9 +178,10 @@ export default function WindowsPage({ open, onClose, selected }) {
           number={4}
           initialPosition={{ x: 980, y: 420 }}
           width={640}
-          height={340}
+          height={420}
+          contentOverflow="hidden"
         >
-          <CmdWindow fontScale={3} />
+          <CmdWindow fontScale={2.6} />
         </DummyWindow>
       </div>
     </div>

@@ -1,6 +1,6 @@
 .card {
   text-align: left;
-  background: #0b0b0b;
+  background: rgba(11, 11, 11, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 0;
   padding: 24px;
@@ -74,7 +74,7 @@
   height: 420px;
   margin-top: 12px;
   border-radius: 0;
-  background: #000000;
+  background: rgba(0, 0, 0, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.4);
   position: relative;
   overflow: hidden;
