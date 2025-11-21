@@ -1,6 +1,21 @@
 import styles from "./styles.module.css";
 
-export default function BugCard({ index, label, desc, mode, onOpen, previewSrc, videoSrc, style, previewStyle, previewOverlayStyle, previewChildren }) {
+export default function BugCard({
+  index,
+  label,
+  desc,
+  mode,
+  onOpen,
+  previewSrc,
+  videoSrc,
+  style,
+  previewStyle,
+  previewOverlayStyle,
+  previewChildren,
+  statusText = "stuffing Sucess!",
+  statusColor,
+  statusDotColor,
+}) {
   return (
     <button className={styles.card} onClick={() => onOpen(mode)} style={style}>
       {/* X-ray style tab header and number */}
@@ -35,9 +50,15 @@ export default function BugCard({ index, label, desc, mode, onOpen, previewSrc, 
         {previewChildren}
         <div className={styles.previewOverlay} style={previewOverlayStyle} />
         {/* bottom status */}
-        <div className={styles.status}>
-          <span className={styles.dot} />
-          stuffing Sucess!
+        <div className={styles.status} style={statusColor ? { color: statusColor } : undefined}>
+          <span
+            className={styles.dot}
+            style={statusDotColor ? {
+              background: statusDotColor,
+              boxShadow: `0 0 8px ${statusDotColor}CC`
+            } : undefined}
+          />
+          {statusText}
         </div>
       </div>
     </button>

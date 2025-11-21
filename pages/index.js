@@ -66,6 +66,15 @@ export default function Home() {
     return { data: introButtons[idx >= 0 ? idx : 0], index: (idx >= 0 ? idx : 0) + 1 };
   }, [activeMode]);
 
+  // 배경 지네 클릭 → 카드로 복귀
+  useEffect(() => {
+    const onReturn = () => {
+      setCentipedeVisible(false);
+    };
+    window.addEventListener("centipedeReturn", onReturn);
+    return () => window.removeEventListener("centipedeReturn", onReturn);
+  }, []);
+
   return (
     <>
       <Head>
@@ -85,8 +94,16 @@ export default function Home() {
         <BackgroundCodeLayer lines={140} mode="typeScroll" typeSpeed={70} scrollSpeed={18} />
         {/* 배경 지네: Window 닫힌 뒤에만 표시 */}
         {!overlayOpen && centipedeVisible && (
-          <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none" }}>
-            <MainCanvas initialMode="centipede" hideUI spritePaths={spritePaths} showControls={false} zIndex={1} />
+        <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none" }}>
+          <MainCanvas
+            initialMode="centipede"
+            hideUI
+            spritePaths={spritePaths}
+            showControls={false}
+            zIndex={1}
+            renderMouseFollower={false}
+            spawnSingleBot
+          />
           </div>
         )}
         <div className="grid-bg" />
@@ -160,16 +177,29 @@ export default function Home() {
                         position: "absolute",
                         inset: 0,
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "#ffffff",
-                        fontSize: 96,
-                        fontWeight: 900,
-                        letterSpacing: 6,
+                        gap: 8,
+                        pointerEvents: "none"
                       }}>
-                        404
+                        <div style={{
+                          color: "#ff3b3b",
+                          fontSize: 96,
+                          fontWeight: 900,
+                          letterSpacing: 6
+                        }}>404</div>
+                        <div style={{
+                          color: "#ff3b3b",
+                          fontSize: 26,
+                          fontWeight: 800,
+                          letterSpacing: 3
+                        }}>Not Found</div>
                       </div>
                     }
+                    statusText="Stuffing Fail!!"
+                    statusColor="#ff3b3b"
+                    statusDotColor="#ff3b3b"
                   />
                 );
               }

@@ -7,7 +7,17 @@ import { useEffect, useRef, useState } from "react";
 
 const CentipedeControls = dynamic(() => import("@/components/controls/CentipedeControls"), { ssr: false });
 
-export default function Main({ initialMode = "centipede", hideUI = false, spritePaths = {}, spriteRotationOffset = {}, showControls = true, zIndex = 2 } = {}) {
+export default function Main({
+  initialMode = "centipede",
+  hideUI = false,
+  spritePaths = {},
+  spriteRotationOffset = {},
+  showControls = true,
+  zIndex = 2,
+  renderMouseFollower = true,
+  spawnSingleBot = false,
+  autoReproOnce = false,
+} = {}) {
   const canvasRef = useRef(null);
   const [mode, setMode] = useState(initialMode); // "centipede" | "gecko" | "spider"
   const [isReady, setIsReady] = useState(false);
@@ -498,6 +508,21 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
+      // If click hits an existing bot head: treat as "return to card"
+      const HIT = 36;
+      for (let i = 0; i < bots.length; i++) {
+        const head = bots[i]?.segments?.[0];
+        if (!head) continue;
+        if (Math.hypot(head.x - x, head.y - y) <= HIT) {
+          bots.length = 0;
+          try { window.dispatchEvent(new CustomEvent("centipedeReturn")); } catch {}
+          return;
+        }
+      }
+      // When used as background (mouse follower off), disable manual spawn to avoid stray bugs
+      if (!renderMouseFollower) {
+        return;
+      }
       // Cap check
       if (bots.length >= MAX_BOTS) {
         if (SHOW_ERROR) setShowErrorOverlay(true);
@@ -543,7 +568,9 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       if (!running) return;
       clear();
       lengthenOrShorten();
-      followChain(timeMs);
+      if (renderMouseFollower) {
+        followChain(timeMs);
+      }
     // 5초마다 전체 개체 분열 (N -> 2N)
     const AUTO_REPRO_ENABLED = false; // 자동 분열 비활성화 플래그
       const nowTs = timeMs || performance.now();
@@ -621,7 +648,10 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         // 배경/그리드 미표시: 하단 UI가 비치도록 함
         renderUseSprites = useSprites;
         if (mode === "centipede") {
-          drawCentipede(timeMs);
+          // 마우스 추적 체인이 비활성화되면 메인 체인은 그리지 않음(정지 잔상 방지)
+          if (renderMouseFollower) {
+            drawCentipede(timeMs);
+          }
         } else if (mode === "gecko") {
           drawGecko(timeMs);
         } else {
@@ -636,7 +666,7 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
         try { console.log("[main] raf alive"); } catch {}
       }
       // 헤드 좌표를 외부로 브로드캐스트(뷰포트 좌표)
-      if (state.segments && state.segments[0]) {
+      if (renderMouseFollower && state.segments && state.segments[0]) {
         const head = state.segments[0];
         window.dispatchEvent(new CustomEvent("centipedeHead", { detail: { x: head.x, y: head.y, t: performance.now() } }));
       }
@@ -653,6 +683,44 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
     // 캡처 단계에서 포인터 다운을 받아 드래그 헤더 등에서의 stopPropagation 영향을 회피
     window.addEventListener("pointerdown", onClickSpawn, { passive: true, capture: true });
     try { console.log("[main] listeners attached (resize, mousemove, pointerdown-capture)"); } catch {}
+    // 옵션: 초기 자율 지네 하나 생성
+    if (spawnSingleBot) {
+      const rect = canvas.getBoundingClientRect();
+      const cx = (rect.width || window.innerWidth) * 0.5;
+      const cy = (rect.height || window.innerHeight) * 0.5;
+      bots.push(newBot(cx, cy));
+      try { console.log("[bots] initial single bot spawned"); } catch {}
+    }
+    // 옵션: 1회 자동 분열(60초 후)
+    let oneShotTimer = null;
+    if (autoReproOnce) {
+      oneShotTimer = setTimeout(() => {
+        const nowTs = performance.now();
+        const before = bots.length;
+        if (before === 0) {
+          // 없으면 중앙에 2마리 갈라지듯 생성
+          const rect2 = canvas.getBoundingClientRect();
+          const cx2 = (rect2.width || window.innerWidth) * 0.5;
+          const cy2 = (rect2.height || window.innerHeight) * 0.5;
+          const parent = newBot(cx2, cy2);
+          const c1 = cloneFromParent(parent, -1, nowTs);
+          const c2 = cloneFromParent(parent, +1, nowTs);
+          ensureBotInBounds(c1); ensureBotInBounds(c2);
+          bots.push(c1);
+          if (bots.length < MAX_BOTS) bots.push(c2);
+        } else {
+          const parents = bots.splice(0, before);
+          for (let p of parents) {
+            if (bots.length >= MAX_BOTS) { bots.push(p); continue; }
+            const c1 = cloneFromParent(p, -1, nowTs); ensureBotInBounds(c1); bots.push(c1);
+            if (bots.length >= MAX_BOTS) continue;
+            const c2 = cloneFromParent(p, +1, nowTs); ensureBotInBounds(c2); bots.push(c2);
+          }
+        }
+        try { console.log("[bots] one-shot auto reproduction fired. total:", bots.length); } catch {}
+      }, 60000);
+    }
+
     animationFrameId = requestAnimationFrame(render);
 
     return () => {
@@ -661,8 +729,9 @@ export default function Main({ initialMode = "centipede", hideUI = false, sprite
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("pointerdown", onClickSpawn, { capture: true });
+      if (oneShotTimer) clearTimeout(oneShotTimer);
     };
-  }, [mode]);
+  }, [mode, renderMouseFollower, spawnSingleBot, autoReproOnce]);
 
   // Load sprites (allow override via spritePaths) when spriteVersion changes
   useEffect(() => {

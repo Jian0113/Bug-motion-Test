@@ -35,6 +35,7 @@ export default function BackgroundCodeLayer({
   const [typed, setTyped] = useState("");
   const scrollPxRef = useRef(0);
   const containerRef = useRef(null);
+  const rootRef = useRef(null);
   const source = useMemo(() => {
     // 길게 반복된 소스 버퍼
     const base = SAMPLE.join("\n") + "\n";
@@ -59,7 +60,7 @@ export default function BackgroundCodeLayer({
         carry -= add;
         const next = source.slice(cursor, cursor + add);
         cursor = (cursor + add) % source.length;
-        setTyped((s) => (s + next).slice(-20000)); // 제한
+        setTyped((s) => (s + next).slice(-12000)); // 제한
       }
       // scroll up
       scrollPxRef.current = (scrollPxRef.current + (scrollSpeed * dt) / 1000) % (lineHeight * 10000);
@@ -72,8 +73,54 @@ export default function BackgroundCodeLayer({
     return () => cancelAnimationFrame(raf);
   }, [mode, source, typeSpeed, scrollSpeed]);
 
+  // 히트박스: 배경 코드 문자 변조
+  useEffect(() => {
+    if (mode !== "typeScroll") return;
+    const handler = (e) => {
+      const { x, y } = (e && e.detail) || {};
+      const root = rootRef.current;
+      if (!root || typeof x !== "number" || typeof y !== "number") return;
+      const rect = root.getBoundingClientRect();
+      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
+      const spans = root.querySelectorAll('span[data-bg="1"]');
+      if (!spans || spans.length === 0) return;
+      let nearest = null;
+      let best = Infinity;
+      spans.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        const cx = (r.left + r.right) / 2;
+        const cy = (r.top + r.bottom) / 2;
+        const d = Math.hypot(cx - x, cy - y);
+        if (d < best) { best = d; nearest = el; }
+      });
+      const HIT = 32;
+      if (!nearest || best > HIT) return;
+      const colors = ["#ff00ff", "#00ff00"];
+      const tokenPool = ["가","나","다","라","마","바","사","아","자","차","カ","キ","ク","ケ","コ","ア","イ","ウ","エ","オ","虫","文","系","統","电","腦","ا","ب","ت","ث","ج","ح","خ","а","б","в","г","д","е","ж","з","и","й"];
+      const orig = nearest.getAttribute("data-orig") ?? nearest.textContent;
+      nearest.setAttribute("data-orig", orig);
+      const t = tokenPool[Math.floor(Math.random() * tokenPool.length)];
+      nearest.textContent = t;
+      const c = colors[Math.floor(Math.random() * colors.length)];
+      nearest.style.transition = "color 600ms ease";
+      nearest.style.color = c;
+      nearest.style.textShadow = `${c} 0 0 6px`;
+      const existing = nearest.getAttribute("data-timer");
+      if (existing) clearTimeout(Number(existing));
+      const tid = setTimeout(() => {
+        nearest.textContent = orig;
+        nearest.style.color = "rgba(148,163,184,0.35)";
+        nearest.style.textShadow = "none";
+        nearest.removeAttribute("data-timer");
+      }, 3000);
+      nearest.setAttribute("data-timer", String(tid));
+    };
+    window.addEventListener("centipedeHead", handler);
+    return () => window.removeEventListener("centipedeHead", handler);
+  }, [mode]);
+
   return (
-    <div style={{
+    <div ref={rootRef} style={{
       position: "absolute",
       inset: 0,
       overflow: "hidden",
@@ -114,7 +161,9 @@ export default function BackgroundCodeLayer({
           maskImage: "linear-gradient(180deg, transparent, black 10%, black 90%, transparent)",
         }}>
           <div ref={containerRef}>
-            {typed}
+            {typed.split("").map((ch, idx) => (
+              <span key={idx} data-bg="1">{ch}</span>
+            ))}
           </div>
         </div>
       )}
