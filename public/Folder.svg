@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 440">
+  <defs>
+    <style>
+      .tab {
+        fill: #5bf14b;
+        stroke: #5bf14b;
+        stroke-width: 3;
+      }
+      .panel {
+        fill: #050505;
+        stroke: #5bf14b;
+        stroke-width: 3;
+      }
+      .text-main {
+        fill: #ffffff;
+        font-family: "JetBrains Mono", "Noto Sans KR", monospace;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .text-sub {
+        fill: #ffffff;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 18px;
+        font-weight: 600;
+      }
+    </style>
+  </defs>
+
+  <!-- folder tab -->
+  <path class="tab" d="M0 12 h200 l24 38 h96 v-38 H0 Z" />
+
+  <!-- main panel -->
+  <rect class="panel" x="6" y="50" width="308" height="384" rx="0" ry="0" />
+
+  <!-- title -->
+  <text class="text-main" x="14" y="35">bug(OverBloom);</text>
+  <text class="text-main" x="270" y="35">01</text>
+
+  <!-- inner image placeholder -->
+  <g transform="translate(12,58)">
+    <rect x="0" y="0" width="296" height="368" fill="#0b0b0b" stroke="#5bf14b" stroke-width="2"/>
+    <image href="/1_parts_body.png" x="18" y="18" width="260" height="332" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+</svg>
