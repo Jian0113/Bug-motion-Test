@@ -13,13 +13,13 @@ const SLUG_MODE = {
   "event-merge": "centipede",
   "result-loop": "centipede",
   ratiodrift: "gecko",
-  macrobloom: "gecko",
+  macrobloom: "spider",
   minifade: "gecko",
   "scale-drift": "gecko",
   "shape-inflate": "gecko",
   "misalign-form": "gecko",
   amalgmation: "gecko",
-  "patch-growth": "gecko",
+  "patch-growth": "spider",
   colordrift: "spider",
   cachefootprint: "spider",
   "soft-edge": "spider",
@@ -59,6 +59,11 @@ const SPRITE_PATH_OVERRIDES = {
 };
 
 const SPRITE_ROTATION_OFFSET = {};
+const SPIDER_VARIANT_BY_SLUG = {
+  macrobloom: "macro",
+  ghostprint: "ghost",
+  "patch-growth": "patch",
+};
 const FALLBACK_DESCRIPTION = "상세 설명이 없습니다.";
 const FALLBACK_TYPE = "Indicia Deficiens / WHAT / CONTEXT";
 const FALLBACK_TITLE = "Bug Detail";
@@ -76,6 +81,10 @@ export default function WebDetailTemplate({ slug }) {
   );
   const treeData = useMemo(() => SIDEBAR_TREE, []);
   const activeId = useMemo(() => normalizeSlug(card?.slug || slug), [card, slug]);
+  const spiderVariant = useMemo(
+    () => SPIDER_VARIANT_BY_SLUG[normalizedSlug] || "base",
+    [normalizedSlug]
+  );
   const initialOpen = useMemo(() => {
     if (normalizedSlug === "overbloom") return ["vibe", "quant"];
     return ["vibe", "ambiguity", "structure", "quant", "scale", "logic"];
@@ -153,6 +162,7 @@ export default function WebDetailTemplate({ slug }) {
         hideUI
         spritePaths={spritePaths}
         spriteRotationOffset={SPRITE_ROTATION_OFFSET}
+        spiderVariant={spiderVariant}
         showControls={true}
         autoReproEnabled={normalizedSlug === "overbloom"}
         scaleMultiplier={initialMode === "centipede" ? 1 : 1}

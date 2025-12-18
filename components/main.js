@@ -3,6 +3,9 @@ import dynamic from "next/dynamic";
 import { drawCentipede as drawCentipedeLib } from "@/lib/centipede";
 import { drawGecko as drawGeckoLib } from "@/lib/gecko";
 import { drawSpider as drawSpiderLib } from "@/lib/spider";
+import { drawMacroSpider } from "@/lib/Macro_Spider";
+import { drawGhostSpider } from "@/lib/Ghost_Spider";
+import { drawPatchSpider } from "@/lib/Patch_Spider";
 import { useEffect, useRef, useState } from "react";
 
 const CentipedeControls = dynamic(() => import("@/components/controls/CentipedeControls"), { ssr: false });
@@ -13,6 +16,7 @@ export default function Main({
   hideUI = false,
   spritePaths = {},
   spriteRotationOffset = {},
+  spiderVariant = "base",
   showControls = true,
   zIndex = 2,
   renderMouseFollower = true,
@@ -1140,7 +1144,14 @@ export default function Main({
     const ctx = canvas.getContext("2d");
     const segments = getStateSegments();
     if (!segments || segments.length < 4) return;
-    drawSpiderLib(ctx, { segments }, timeMs, getSprite);
+    const spiderDrawMap = {
+      base: drawSpiderLib,
+      macro: drawMacroSpider,
+      ghost: drawGhostSpider,
+      patch: drawPatchSpider,
+    };
+    const drawFn = spiderDrawMap[spiderVariant] || drawSpiderLib;
+    drawFn(ctx, { segments }, timeMs, getSprite);
   }
 
   // helpers to access latest segments safely inside drawSpider
