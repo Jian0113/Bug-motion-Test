@@ -101,7 +101,7 @@ const FALLBACK_TITLE = "Bug Detail";
 
 const normalizeSlug = (value) => (value || "").toString().trim().toLowerCase();
 
-export default function WebDetailTemplate({ slug, showControls = true }) {
+export default function WebDetailTemplate({ slug }) {
   const { releaseBug } = useBugs();
   const [sidebarHover, setSidebarHover] = useState(false);
 
@@ -122,6 +122,10 @@ export default function WebDetailTemplate({ slug, showControls = true }) {
   }, [normalizedSlug]);
   const initialMode =
     SLUG_MODE[normalizedSlug] || SLUG_MODE[normalizeSlug(card?.slug)] || "centipede";
+  const renderMouseFollower = useMemo(
+    () => ["ratiodrift", "overbloom", "patch-growth"].includes(normalizedSlug),
+    [normalizedSlug]
+  );
 
   useEffect(() => {
     const markReleased = () => {
@@ -184,8 +188,8 @@ export default function WebDetailTemplate({ slug, showControls = true }) {
         spritePaths={spritePaths}
         spriteRotationOffset={SPRITE_ROTATION_OFFSET}
         spiderVariant={spiderVariant}
-        renderMouseFollower={false}
-        showControls={showControls}
+        renderMouseFollower={renderMouseFollower}
+        showControls={true}
         autoReproEnabled={normalizedSlug === "overbloom"}
         scaleMultiplier={initialMode === "centipede" ? 1 : 1}
       />
