@@ -101,7 +101,7 @@ const FALLBACK_TITLE = "Bug Detail";
 
 const normalizeSlug = (value) => (value || "").toString().trim().toLowerCase();
 
-export default function WebDetailTemplate({ slug }) {
+export default function WebDetailTemplate({ slug, showControls = true }) {
   const { releaseBug } = useBugs();
   const [sidebarHover, setSidebarHover] = useState(false);
 
@@ -185,7 +185,7 @@ export default function WebDetailTemplate({ slug }) {
         spriteRotationOffset={SPRITE_ROTATION_OFFSET}
         spiderVariant={spiderVariant}
         renderMouseFollower={false}
-        showControls={true}
+        showControls={showControls}
         autoReproEnabled={normalizedSlug === "overbloom"}
         scaleMultiplier={initialMode === "centipede" ? 1 : 1}
       />
