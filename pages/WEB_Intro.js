@@ -5,6 +5,15 @@ import WebIntroBackground from "@/components/WebIntroBackground";
 
 export default function WEB_Intro() {
   useEffect(() => {
+    const bots = window.__bots || [];
+    if (bots.length === 0) {
+      window.__bots = [{
+        kind: "spider",
+        variant: "patch",
+        scaleMultiplier: 1,
+        segmentCount: 60,
+      }];
+    }
     let aborted = false;
     async function pingMcp() {
       try {

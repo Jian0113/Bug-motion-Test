@@ -62,6 +62,9 @@ export default function Main({
     jawAnchorHeadGap: 0,
     legSwingAmpDeg: 14,
     legSwingSpeed: 0.004,
+    legScale: 1.0,
+    legRots: { 1: -17, 2: 49, 3: 180, 4: 180 },
+    legAnchorOffsets: { 1: -2, 2: 0, 3: 7, 4: 14 },
   });
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
@@ -351,33 +354,6 @@ export default function Main({
     };
 
     const followChain = (timeMs) => {
-      const logTs = timeMs || performance.now();
-      if (!followChain._lastLog) followChain._lastLog = 0;
-      // #region agent log
-      if (logTs - followChain._lastLog > 1200) {
-        followChain._lastLog = logTs;
-        fetch('http://127.0.0.1:7242/ingest/aa0df7a3-9505-41db-a875-29a987833b4d',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({
-            sessionId:'debug-session',
-            runId:'pre-fix',
-            hypothesisId:'H3',
-            location:'components/main.js:followChain',
-            message:'follow state',
-            data:{
-              followEnabled: followEnabledRef.current,
-              head: state.segments[0],
-              mouse: state.mouse,
-              mouseVX: state.mouseVX,
-              mouseVY: state.mouseVY,
-            },
-            timestamp: Date.now(),
-          })
-        }).catch(()=>{});
-      }
-      // #endregion
-
       if (!followEnabledRef.current) return;
       // head moves toward mouse with capped speed
       const head = state.segments[0];

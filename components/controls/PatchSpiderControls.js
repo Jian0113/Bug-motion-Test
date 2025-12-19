@@ -32,6 +32,10 @@ export default function PatchSpiderControls({ initialValues, onChange }) {
     jawAnchorHeadGap,
     legSwingAmpDeg,
     legSwingSpeed,
+    legAnchorOffset1,
+    legAnchorOffset2,
+    legAnchorOffset3,
+    legAnchorOffset4,
   } = useControls("Patch Spider", {
     headScale: { value: initialValues.headScale ?? 1.0, min: 0.05, max: 3, step: 0.01 },
     bodyScale: { value: initialValues.bodyScale ?? 1.0, min: 0.05, max: 3, step: 0.01 },
@@ -45,11 +49,11 @@ export default function PatchSpiderControls({ initialValues, onChange }) {
     bodyOffsetY: { value: initialValues.bodyOffsetY ?? 0, min: -200, max: 200, step: 1 },
     jawOffsetX: { value: initialValues.jawOffsetX ?? 0, min: -200, max: 200, step: 1 },
     jawOffsetY: { value: initialValues.jawOffsetY ?? 0, min: -200, max: 200, step: 1 },
-    legScale: { value: initialValues.legScale ?? 1.6, min: 0.05, max: 3, step: 0.01 },
-    legRot1: { value: initialValues.legRot1 ?? 0, min: -180, max: 180, step: 1 },
-    legRot2: { value: initialValues.legRot2 ?? 0, min: -180, max: 180, step: 1 },
-    legRot3: { value: initialValues.legRot3 ?? 0, min: -180, max: 180, step: 1 },
-    legRot4: { value: initialValues.legRot4 ?? 0, min: -180, max: 180, step: 1 },
+    legScale: { value: initialValues.legScale ?? 1.0, min: 0.05, max: 3, step: 0.01 },
+    legRot1: { value: initialValues.legRot1 ?? -17, min: -180, max: 180, step: 1 },
+    legRot2: { value: initialValues.legRot2 ?? 49, min: -180, max: 180, step: 1 },
+    legRot3: { value: initialValues.legRot3 ?? 180, min: -180, max: 180, step: 1 },
+    legRot4: { value: initialValues.legRot4 ?? 180, min: -180, max: 180, step: 1 },
     legOffsetX: { value: initialValues.legOffsetX ?? 0, min: -200, max: 200, step: 1 },
     legOffsetY: { value: initialValues.legOffsetY ?? 0, min: -200, max: 200, step: 1 },
     bodyGap: { value: initialValues.bodyGap ?? 57, min: -150, max: 300, step: 1 },
@@ -62,6 +66,10 @@ export default function PatchSpiderControls({ initialValues, onChange }) {
     jawAnchorHeadGap: { value: initialValues.jawAnchorHeadGap ?? 0, min: -200, max: 200, step: 1 },
     legSwingAmpDeg: { value: initialValues.legSwingAmpDeg ?? 14, min: 0, max: 60, step: 0.5 },
     legSwingSpeed: { value: initialValues.legSwingSpeed ?? 0.004, min: 0, max: 0.02, step: 0.0005 },
+    legAnchorOffset1: { value: initialValues.legAnchorOffset1 ?? -2, min: -90, max: 90, step: 1 },
+    legAnchorOffset2: { value: initialValues.legAnchorOffset2 ?? 0, min: -90, max: 90, step: 1 },
+    legAnchorOffset3: { value: initialValues.legAnchorOffset3 ?? 7, min: -90, max: 90, step: 1 },
+    legAnchorOffset4: { value: initialValues.legAnchorOffset4 ?? 14, min: -90, max: 90, step: 1 },
   });
 
   useEffect(() => {
@@ -88,6 +96,12 @@ export default function PatchSpiderControls({ initialValues, onChange }) {
       jawAnchorHeadGap,
       legSwingAmpDeg,
       legSwingSpeed,
+      legAnchorOffsets: {
+        1: legAnchorOffset1,
+        2: legAnchorOffset2,
+        3: legAnchorOffset3,
+        4: legAnchorOffset4,
+      },
     });
   }, [
     headScale,
@@ -119,6 +133,10 @@ export default function PatchSpiderControls({ initialValues, onChange }) {
     jawAnchorHeadGap,
     legSwingAmpDeg,
     legSwingSpeed,
+    legAnchorOffset1,
+    legAnchorOffset2,
+    legAnchorOffset3,
+    legAnchorOffset4,
   ]);
 
   // 패널이 접혀 보이지 않는 문제 방지: 펼친 상태 + 한 줄 라벨
