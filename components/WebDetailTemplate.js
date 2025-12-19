@@ -173,26 +173,6 @@ export default function WebDetailTemplate({ slug }) {
         ...(base.spider || {}),
       };
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/aa0df7a3-9505-41db-a875-29a987833b4d',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        sessionId:'debug-session',
-        runId:'run-gecko',
-        hypothesisId:'H2',
-        location:'WebDetailTemplate:spritePaths',
-        message:'computed spritePaths for slug',
-        data:{
-          slug,
-          normalizedSlug,
-          gecko: base.gecko,
-          hasBodyFrames: Array.isArray(base.gecko?.bodyFrames) ? base.gecko.bodyFrames.length : 0
-        },
-        timestamp: Date.now(),
-      })
-    }).catch(()=>{});
-    // #endregion
     return base;
   }, [normalizedSlug]);
 
@@ -204,6 +184,7 @@ export default function WebDetailTemplate({ slug }) {
         spritePaths={spritePaths}
         spriteRotationOffset={SPRITE_ROTATION_OFFSET}
         spiderVariant={spiderVariant}
+        renderMouseFollower={false}
         showControls={true}
         autoReproEnabled={normalizedSlug === "overbloom"}
         scaleMultiplier={initialMode === "centipede" ? 1 : 1}

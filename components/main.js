@@ -20,7 +20,7 @@ export default function Main({
   spiderVariant = "base",
   showControls = true,
   zIndex = 2,
-  renderMouseFollower = true,
+  renderMouseFollower = false,
   spawnSingleBot = false,
   autoReproOnce = false,
   maxDpr = 2,
@@ -354,6 +354,22 @@ export default function Main({
     };
 
     const followChain = (timeMs) => {
+      // 가상 마우스(자동 주행): renderMouseFollower가 false면 주기적 궤적으로 mouse 값을 갱신
+      if (!renderMouseFollower) {
+        const t = timeMs || performance.now();
+        const amp = 160;
+        const speed = 0.00035;
+        const cw = canvasRef.current?.clientWidth || window.innerWidth || 800;
+        const ch = canvasRef.current?.clientHeight || window.innerHeight || 600;
+        const newX = cw * 0.5 + Math.cos(t * speed) * amp;
+        const newY = ch * 0.5 + Math.sin(t * speed * 1.2) * amp * 0.7;
+        const dt = Math.max(1, t - (state.lastMouseTs || t));
+        state.mouseVX = (newX - state.mouse.x) / dt;
+        state.mouseVY = (newY - state.mouse.y) / dt;
+        state.mouse.x = newX;
+        state.mouse.y = newY;
+        state.lastMouseTs = t;
+      }
       if (!followEnabledRef.current) return;
       // head moves toward mouse with capped speed
       const head = state.segments[0];

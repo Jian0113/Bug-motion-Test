@@ -163,7 +163,7 @@ function WebIntroSection({ cards = webIntroCards }) {
             color: "rgb(0, 255, 0)",
           }}
         >
-          VibeCodingBUGEncyclopedia.com
+              VibeCodingBugEncyclopedia
         </div>
       </div>
 

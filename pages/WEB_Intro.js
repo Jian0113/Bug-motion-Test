@@ -5,14 +5,20 @@ import WebIntroBackground from "@/components/WebIntroBackground";
 
 export default function WEB_Intro() {
   useEffect(() => {
+    const defaultBots = [
+      { kind: "spider", variant: "patch", scaleMultiplier: 1, segmentCount: 60 },
+    ];
     const bots = window.__bots || [];
     if (bots.length === 0) {
-      window.__bots = [{
-        kind: "spider",
-        variant: "patch",
-        scaleMultiplier: 1,
-        segmentCount: 60,
-      }];
+      window.__bots = defaultBots;
+    } else {
+      // 중복 없이 병합
+      const existing = new Set(bots.map((b) => `${b.kind}-${b.variant}`));
+      defaultBots.forEach((b) => {
+        const key = `${b.kind}-${b.variant}`;
+        if (!existing.has(key)) bots.push(b);
+      });
+      window.__bots = bots;
     }
     let aborted = false;
     async function pingMcp() {
