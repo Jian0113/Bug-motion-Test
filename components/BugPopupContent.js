@@ -156,6 +156,12 @@ export default function BugPopupContent({ data }) {
   const resolvedBugType = bugType ?? "Indicia Deficiens / WHAT / CONTEXT";
   // Visual results 섹션을 전역 비활성화
   const resolvedVisualResults = "";
+  const resolvedVideoSrc =
+    videoSrc ??
+    data?.video ??
+    data?.videoSrcAlt ??
+    data?.popup?.videoSrc ??
+    null;
   const promptList =
     prompts && prompts.length
       ? prompts
@@ -230,9 +236,9 @@ export default function BugPopupContent({ data }) {
                 boxSizing: "border-box",
               }}
             />
-            {videoSrc ? (
+            {resolvedVideoSrc ? (
               <video
-                src={videoSrc}
+                src={resolvedVideoSrc}
                 autoPlay
                 loop
                 muted
