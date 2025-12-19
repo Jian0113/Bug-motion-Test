@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 const CentipedeControls = dynamic(() => import("@/components/controls/CentipedeControls"), { ssr: false });
 const GeckoControls = dynamic(() => import("@/components/controls/GeckoControls"), { ssr: false });
+const PatchSpiderControls = dynamic(() => import("@/components/controls/PatchSpiderControls"), { ssr: false });
 
 export default function Main({
   initialMode = "centipede",
@@ -34,6 +35,34 @@ export default function Main({
   const [isReady, setIsReady] = useState(false);
   const [showErrorOverlay, setShowErrorOverlay] = useState(false);
   const scaleMul = scaleMultiplier ?? 1;
+  const followEnabledRef = useRef(true); // click to toggle follow
+  const spiderControlsRef = useRef({
+    headScale: 1,
+    bodyScale: 1,
+    jawScale: 1,
+    headRot: 90,
+    bodyRot: 90,
+    jawRot: 90,
+    headOffset: { x: 0, y: 0 },
+    bodyOffset: { x: 0, y: 0 },
+    jawOffset: { x: 0, y: 0 },
+    legScale: 1.6,
+    legRot1: 0,
+    legRot2: 0,
+    legRot3: 0,
+    legRot4: 0,
+    legOffset: { x: 0, y: 0 },
+    bodyGap: 57,
+    legAttach: 1.37,
+    jawLen: 200,
+    headGap: 35,
+    jawHeadGap: 74,
+    jawSpreadDeg: 7,
+    jawAnchorGap: 71,
+    jawAnchorHeadGap: 0,
+    legSwingAmpDeg: 14,
+    legSwingSpeed: 0.004,
+  });
   const spritesRef = useRef({
     centipede: { head: null, body: null, leg: null },
     spider: { head: null, body: null, leg: null },
@@ -304,6 +333,10 @@ export default function Main({
     };
     let lastActiveTime = performance.now();
 
+    const onClickToggleFollow = () => {
+      followEnabledRef.current = !followEnabledRef.current;
+    };
+
     const lengthenOrShorten = () => {
       const desired = state.segmentCount;
       const current = state.segments.length;
@@ -318,6 +351,34 @@ export default function Main({
     };
 
     const followChain = (timeMs) => {
+      const logTs = timeMs || performance.now();
+      if (!followChain._lastLog) followChain._lastLog = 0;
+      // #region agent log
+      if (logTs - followChain._lastLog > 1200) {
+        followChain._lastLog = logTs;
+        fetch('http://127.0.0.1:7242/ingest/aa0df7a3-9505-41db-a875-29a987833b4d',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            sessionId:'debug-session',
+            runId:'pre-fix',
+            hypothesisId:'H3',
+            location:'components/main.js:followChain',
+            message:'follow state',
+            data:{
+              followEnabled: followEnabledRef.current,
+              head: state.segments[0],
+              mouse: state.mouse,
+              mouseVX: state.mouseVX,
+              mouseVY: state.mouseVY,
+            },
+            timestamp: Date.now(),
+          })
+        }).catch(()=>{});
+      }
+      // #endregion
+
+      if (!followEnabledRef.current) return;
       // head moves toward mouse with capped speed
       const head = state.segments[0];
       // compute perpendicular oscillation relative to mouse velocity
@@ -930,6 +991,7 @@ export default function Main({
 
     window.addEventListener("resize", onResize);
     window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("click", onClickToggleFollow);
     // 캡처 단계에서 포인터 다운을 받아 드래그 헤더 등에서의 stopPropagation 영향을 회피
     if (!disableBots) {
       window.addEventListener("pointerdown", onClickSpawn, { passive: true, capture: true });
@@ -995,6 +1057,7 @@ export default function Main({
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("click", onClickToggleFollow);
       if (!disableBots) {
         window.removeEventListener("pointerdown", onClickSpawn, { capture: true });
       }
@@ -1004,30 +1067,68 @@ export default function Main({
 
   // Load sprites (allow override via spritePaths) when spriteVersion changes
   useEffect(() => {
-    const loadOne = (path) =>
-      new Promise((resolve) => {
+    const buildCacheBust = (p, v) => {
+      if (!p) return p;
+      return p.includes("?") ? `${p}&v=${v}` : `${p}?v=${v}`;
+    };
+
+    const loadOne = async (path, version) => {
+      if (!path) return null;
+      const tryLoad = async (src) => {
         const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => {
+        img.crossOrigin = "anonymous";
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+        if (img.decode) {
+          try { await img.decode(); } catch {}
+        }
+        return img;
+      };
+      const src1 = buildCacheBust(path, version);
+      const src2 = path; // retry without cache bust just in case
+      try {
+        return await tryLoad(src1);
+      } catch (err1) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/aa0df7a3-9505-41db-a875-29a987833b4d',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            sessionId:'debug-session',
+            runId:'pre-fix',
+            hypothesisId:'H2',
+            location:'components/main.js:loadOne',
+            message:'sprite load retry',
+            data:{ src: src1, version },
+            timestamp: Date.now(),
+          })
+        }).catch(()=>{});
+        // #endregion
+        try {
+          return await tryLoad(src2);
+        } catch (err2) {
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/aa0df7a3-9505-41db-a875-29a987833b4d',{
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
               sessionId:'debug-session',
-              runId:'run-gecko',
-              hypothesisId:'H3',
+              runId:'pre-fix',
+              hypothesisId:'H2',
               location:'components/main.js:loadOne',
-              message:'image load error',
-              data:{ path },
+              message:'sprite load failed',
+              data:{ src: src2, version, error:String(err2) },
               timestamp: Date.now(),
             })
           }).catch(()=>{});
           // #endregion
-          resolve(null);
-        };
-        img.src = path;
-      });
+          return null;
+        }
+      }
+    };
     let mounted = true;
     (async () => {
       const centipedeHeadPath = spritePaths?.centipede?.head ?? "/centipede-head.png";
@@ -1065,15 +1166,15 @@ export default function Main({
       // #endregion
 
       const [cHead, cBody, cLeg, sHead, sBody, sLeg, gHead, gLeg1, gLeg2] = await Promise.all([
-        loadOne(centipedeHeadPath),
-        loadOne(centipedeBodyPath),
-        loadOne(centipedeLegPath),
-        loadOne(spiderHeadPath),
-        loadOne(spiderBodyPath),
-        loadOne(spiderLegPath),
-        loadOne(geckoHeadPath),
-        loadOne(geckoLeg1Path),
-        loadOne(geckoLeg2Path),
+        loadOne(centipedeHeadPath, spriteVersion),
+        loadOne(centipedeBodyPath, spriteVersion),
+        loadOne(centipedeLegPath, spriteVersion),
+        loadOne(spiderHeadPath, spriteVersion),
+        loadOne(spiderBodyPath, spriteVersion),
+        loadOne(spiderLegPath, spriteVersion),
+        loadOne(geckoHeadPath, spriteVersion),
+        loadOne(geckoLeg1Path, spriteVersion),
+        loadOne(geckoLeg2Path, spriteVersion),
       ]);
       const gBodyFrames = await Promise.all(geckoBodyPaths.map((p) => loadOne(p)));
       const gBody = gBodyFrames.find(Boolean) || null;
@@ -1120,7 +1221,7 @@ export default function Main({
       // load any additional centipede sprite keys (e.g., bodyLeft, bodyRight, bodyLeft2, bodyRight2, legLeft, legRight)
       const extraCentipedeEntries = Object.entries(spritePaths?.centipede || {}).filter(([k]) => !["head","body","leg"].includes(k));
       const extraLoaded = await Promise.all(
-        extraCentipedeEntries.map(([, path]) => loadOne(path))
+        extraCentipedeEntries.map(([, path]) => loadOne(path, spriteVersion))
       );
       extraCentipedeEntries.forEach(([key], idx) => {
         spritesRef.current.centipede[key] = extraLoaded[idx];
@@ -1131,6 +1232,21 @@ export default function Main({
       );
       extraCentipedeEntries.forEach(([key], idx) => {
         spritesRef.current.bitmaps.centipede[key] = extraBitmaps[idx];
+      });
+
+      // load any additional spider sprite keys (e.g., jaw1, jaw2, variant legs)
+      const extraSpiderEntries = Object.entries(spritePaths?.spider || {}).filter(([k]) => !["head","body","leg"].includes(k));
+      const extraSpiderLoaded = await Promise.all(
+        extraSpiderEntries.map(([, path]) => loadOne(path, spriteVersion))
+      );
+      extraSpiderEntries.forEach(([key], idx) => {
+        spritesRef.current.spider[key] = extraSpiderLoaded[idx];
+      });
+      const extraSpiderBitmaps = await Promise.all(
+        extraSpiderLoaded.map((img) => makeBitmap(img))
+      );
+      extraSpiderEntries.forEach(([key], idx) => {
+        spritesRef.current.bitmaps.spider[key] = extraSpiderBitmaps[idx];
       });
     })();
     return () => {
@@ -1151,7 +1267,7 @@ export default function Main({
       patch: drawPatchSpider,
     };
     const drawFn = spiderDrawMap[spiderVariant] || drawSpiderLib;
-    drawFn(ctx, { segments }, timeMs, getSprite);
+    drawFn(ctx, { segments, spiderConfig: spiderControlsRef.current }, timeMs, getSprite);
   }
 
   // helpers to access latest segments safely inside drawSpider
@@ -1418,6 +1534,16 @@ export default function Main({
                   })
                 }).catch(()=>{});
                 // #endregion
+              }}
+            />
+          </div>
+        )}
+        {showControls && mode === "spider" && spiderVariant === "patch" && (
+          <div style={{ position: "absolute", top: 12, right: 12, zIndex: 3 }}>
+            <PatchSpiderControls
+              initialValues={spiderControlsRef.current}
+              onChange={(p) => {
+                spiderControlsRef.current = { ...spiderControlsRef.current, ...(p || {}) };
               }}
             />
           </div>

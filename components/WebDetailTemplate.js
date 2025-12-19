@@ -46,6 +46,21 @@ const SPRITE_PATHS = {
     leg1: "/Ratio_leg_1.png",
     leg2: "/Ratio_leg_2.png",
   },
+  // 스파이더 기본값을 PatchGrowth 자산으로 지정 (미로딩 방지)
+  spider: {
+    head: "/Spider/4_PatchGrowth_Sprite/head.png",
+    body: "/Spider/4_PatchGrowth_Sprite/body.png",
+    jaw1: "/Spider/4_PatchGrowth_Sprite/jaw_1.png",
+    jaw2: "/Spider/4_PatchGrowth_Sprite/jaw_2.png",
+    leg1L: "/Spider/4_PatchGrowth_Sprite/1_L.png",
+    leg1R: "/Spider/4_PatchGrowth_Sprite/1_R.png",
+    leg2L: "/Spider/4_PatchGrowth_Sprite/2_L.png",
+    leg2R: "/Spider/4_PatchGrowth_Sprite/2_R.png",
+    leg3L: "/Spider/4_PatchGrowth_Sprite/3_L.png",
+    leg3R: "/Spider/4_PatchGrowth_Sprite/3R.png",
+    leg4L: "/Spider/4_PatchGrowth_Sprite/4_L.png",
+    leg4R: "/Spider/4_PatchGrowth_Sprite/4_R.png",
+  },
 };
 
 // 슬러그별 스프라이트 교체(변형 버전 지정)
@@ -54,6 +69,22 @@ const SPRITE_PATH_OVERRIDES = {
     gecko: {
       // 14-15-14-15 순으로 번갈아 사용할 프레임 배열
       bodyFrames: ["/Ratio_Body-14.png", "/Ratio_Body-15.png"],
+    },
+  },
+  "patch-growth": {
+    spider: {
+      head: "/Spider/4_PatchGrowth_Sprite/head.png",
+      body: "/Spider/4_PatchGrowth_Sprite/body.png",
+      jaw1: "/Spider/4_PatchGrowth_Sprite/jaw_1.png",
+      jaw2: "/Spider/4_PatchGrowth_Sprite/jaw_2.png",
+      leg1L: "/Spider/4_PatchGrowth_Sprite/1_L.png",
+      leg1R: "/Spider/4_PatchGrowth_Sprite/1_R.png",
+      leg2L: "/Spider/4_PatchGrowth_Sprite/2_L.png",
+      leg2R: "/Spider/4_PatchGrowth_Sprite/2_R.png",
+      leg3L: "/Spider/4_PatchGrowth_Sprite/3_L.png",
+      leg3R: "/Spider/4_PatchGrowth_Sprite/3R.png",
+      leg4L: "/Spider/4_PatchGrowth_Sprite/4_L.png",
+      leg4R: "/Spider/4_PatchGrowth_Sprite/4_R.png",
     },
   },
 };
@@ -131,6 +162,16 @@ export default function WebDetailTemplate({ slug }) {
       if (override.centipede) base.centipede = { ...base.centipede, ...override.centipede };
       if (override.gecko) base.gecko = { ...base.gecko, ...override.gecko };
       if (override.spider) base.spider = { ...base.spider, ...override.spider };
+    }
+    // patch-growth 전용 안전장치: spider 경로가 비어있으면 기본 패치 스프라이트로 채움
+    if (SPIDER_VARIANT_BY_SLUG[normalizedSlug] === "patch") {
+      base.spider = {
+        head: base.spider?.head ?? "/Spider/4_PatchGrowth_Sprite/head.png",
+        body: base.spider?.body ?? "/Spider/4_PatchGrowth_Sprite/body.png",
+        jaw1: base.spider?.jaw1 ?? "/Spider/4_PatchGrowth_Sprite/jaw_1.png",
+        jaw2: base.spider?.jaw2 ?? "/Spider/4_PatchGrowth_Sprite/jaw_2.png",
+        ...(base.spider || {}),
+      };
     }
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/aa0df7a3-9505-41db-a875-29a987833b4d',{

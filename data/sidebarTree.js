@@ -41,7 +41,6 @@ const VIBE_CHILDREN = [
     type: "folder",
     children: [
       { id: "ghostprint", label: "bug ( GhostPrint );", type: "file", route: "/WEB_Details/6_LOGIC/L_1_GhostPrint" },
-      { id: "cachefootprint", label: "bug ( CacheFootprint );", type: "file", route: "/WEB_Details/6_LOGIC/L_4_CacheFootprint" },
     ],
   },
 ];
