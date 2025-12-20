@@ -63,6 +63,9 @@ const SPRITE_PATHS = {
   },
 };
 
+// Leva 패널을 숨길 슬러그 목록
+const HIDE_CONTROLS_SLUGS = new Set(["overbloom", "ratiodrift"]);
+
 // 슬러그별 스프라이트 교체(변형 버전 지정)
 const SPRITE_PATH_OVERRIDES = {
   ratiodrift: {
@@ -116,6 +119,7 @@ export default function WebDetailTemplate({ slug }) {
     () => SPIDER_VARIANT_BY_SLUG[normalizedSlug] || "base",
     [normalizedSlug]
   );
+  const hideControls = useMemo(() => HIDE_CONTROLS_SLUGS.has(normalizedSlug), [normalizedSlug]);
   const initialOpen = useMemo(() => {
     if (normalizedSlug === "overbloom") return ["vibe", "quant"];
     return ["vibe", "ambiguity", "structure", "quant", "scale", "logic"];
@@ -189,7 +193,7 @@ export default function WebDetailTemplate({ slug }) {
         spriteRotationOffset={SPRITE_ROTATION_OFFSET}
         spiderVariant={spiderVariant}
         renderMouseFollower={renderMouseFollower}
-        showControls={true}
+        showControls={!hideControls}
         autoReproEnabled={normalizedSlug === "overbloom"}
         scaleMultiplier={initialMode === "centipede" ? 1 : 1}
       />
